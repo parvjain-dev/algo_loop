@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TodayClient } from "./TodayClient";
+import { startOfDay, addDays } from "date-fns";
 
 export default async function TodayPage() {
   const supabase = await createServerSupabase();
@@ -15,11 +16,10 @@ export default async function TodayPage() {
     .eq("completed", false)
     .order("next_revision", { ascending: true });
 
-  // Filter: due today or overdue (next_revision <= end of today)
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
+  // Filter: due today or overdue (next_revision < start of tomorrow)
+  const startOfTomorrow = startOfDay(addDays(new Date(), 1));
   const dueProblems = (problems || []).filter(
-    (p) => new Date(p.next_revision) <= endOfToday
+    (p) => new Date(p.next_revision) < startOfTomorrow
   );
 
   return <TodayClient problems={dueProblems} />;
