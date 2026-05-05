@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LayoutDashboard, PlusCircle, BarChart3, BookOpen, Bell, LogOut, CalendarCheck, ChevronDown, MessageSquarePlus } from "lucide-react";
+import { LayoutDashboard, PlusCircle, BarChart3, BookOpen, Bell, LogOut, CalendarCheck, ChevronDown, MessageSquarePlus, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/journal", label: "Journal", icon: BookOpen },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/feedback", label: "Feedback", icon: MessageSquarePlus },
+  { href: "/guide", label: "How to Use", icon: HelpCircle },
 ];
 
 type UserProfile = {
