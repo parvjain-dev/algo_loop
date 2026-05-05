@@ -26,7 +26,7 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     // "already_solved" → schedule revision based on solve method
     // "solve_later" → schedule for tomorrow
     const nextRevision = solveStatus === "already_solved" && solveMethod
-      ? getNextRevisionDate(solveMethod, 0)
+      ? getNextRevisionDate(solveMethod)
       : new Date(Date.now() + 86400000);
 
     const { data } = await supabase.from("problems").insert({
