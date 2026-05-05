@@ -42,6 +42,16 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     if (data) {
       setProblems([data, ...problems]);
       setShowForm(false);
+
+      // If already solved, record a revision (counts toward streak)
+      if (status === "already_solved") {
+        await supabase.from("revisions").insert({
+          problem_id: data.id,
+          user_id: user.id,
+          completed_at: new Date().toISOString(),
+        });
+      }
+
       const msg = status === "already_solved"
         ? `"${data.name}" revision scheduled for ${format(nextRevision, "MMM d")}`
         : `"${data.name}" added to solve tomorrow`;
