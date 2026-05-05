@@ -5,7 +5,7 @@ export type Problem = {
   description: string;
   link: string;
   pattern: string;
-  effort: "low" | "medium" | "high";
+  effort: string;
   revision_count: number;
   next_revision: string;
   completed: boolean;

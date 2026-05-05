@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { PATTERNS, Effort, getNextRevisionDate } from "@/lib/constants";
+import { PATTERNS, SolveMethod, getNextRevisionDate, SOLVE_METHOD_LABELS } from "@/lib/constants";
 import { Problem } from "@/lib/types";
-import { Plus, ExternalLink } from "lucide-react";
+import { Plus, ExternalLink, Pencil, X } from "lucide-react";
 import { format } from "date-fns";
 
 export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
   const [problems, setProblems] = useState(initial);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
 
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -18,14 +20,14 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const effort = form.get("effort") as Effort;
-    const status = form.get("status") as string;
+    const solveStatus = form.get("status") as string;
+    const solveMethod = form.get("solve_method") as SolveMethod | null;
 
-    // "already_solved" → schedule first revision based on effort
-    // "solve_later" → schedule for tomorrow (user will solve it then)
-    const nextRevision = status === "already_solved"
-      ? getNextRevisionDate(effort, 0)
-      : new Date(Date.now() + 86400000); // tomorrow
+    // "already_solved" → schedule revision based on solve method
+    // "solve_later" → schedule for tomorrow
+    const nextRevision = solveStatus === "already_solved" && solveMethod
+      ? getNextRevisionDate(solveMethod, 0)
+      : new Date(Date.now() + 86400000);
 
     const { data } = await supabase.from("problems").insert({
       user_id: user.id,
@@ -33,18 +35,18 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
       description: form.get("description"),
       link: form.get("link"),
       pattern: form.get("pattern"),
-      effort,
+      effort: solveMethod || "with_solution",
       next_revision: nextRevision.toISOString(),
-      revision_count: status === "already_solved" ? 0 : -1, // -1 means not yet solved first time
+      revision_count: solveStatus === "already_solved" ? 0 : -1,
       completed: false,
     }).select().single();
 
     if (data) {
       setProblems([data, ...problems]);
       setShowForm(false);
+      setStatus("");
 
-      // If already solved, record a revision (counts toward streak)
-      if (status === "already_solved") {
+      if (solveStatus === "already_solved") {
         await supabase.from("revisions").insert({
           problem_id: data.id,
           user_id: user.id,
@@ -52,17 +54,33 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
         });
       }
 
-      const msg = status === "already_solved"
-        ? `"${data.name}" revision scheduled for ${format(nextRevision, "MMM d")}`
-        : `"${data.name}" added to solve tomorrow`;
       await supabase.from("notifications").insert({
         user_id: user.id,
-        title: status === "already_solved" ? "Problem Added" : "Problem Queued",
-        message: msg,
+        title: solveStatus === "already_solved" ? "Problem Added" : "Problem Queued",
+        message: solveStatus === "already_solved"
+          ? `"${data.name}" revision in ${format(nextRevision, "MMM d")}`
+          : `"${data.name}" added to solve tomorrow`,
         problem_id: data.id,
         read: false,
       });
     }
+  };
+
+  const handleEdit = async (e: React.FormEvent<HTMLFormElement>, problem: Problem) => {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const supabase = createClient();
+
+    const updates = {
+      name: form.get("name") as string,
+      description: form.get("description") as string,
+      link: form.get("link") as string,
+      pattern: form.get("pattern") as string,
+    };
+
+    await supabase.from("problems").update(updates).eq("id", problem.id);
+    setProblems(problems.map((p) => p.id === problem.id ? { ...p, ...updates } : p));
+    setEditingId(null);
   };
 
   return (
@@ -79,23 +97,24 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
           <input name="name" placeholder="Problem Name" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
           <textarea name="description" placeholder="Description (optional)" className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" rows={2} />
           <input name="link" placeholder="Problem Link (LeetCode, etc.)" className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
-          <div className="grid grid-cols-2 gap-3">
-            <select name="pattern" required className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
-              <option value="">Select Pattern</option>
-              {PATTERNS.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <select name="effort" required className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
-              <option value="">Select Effort</option>
-              <option value="low">Low (easy, quick recall)</option>
-              <option value="medium">Medium (needs practice)</option>
-              <option value="high">High (hard, needs repetition)</option>
-            </select>
-          </div>
-          <select name="status" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+          <select name="pattern" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+            <option value="">Select Pattern</option>
+            {PATTERNS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select name="status" required value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
             <option value="">When are you solving this?</option>
             <option value="already_solved">Already Solved — schedule revision</option>
             <option value="solve_later">Solve Later — add to tomorrow&apos;s queue</option>
           </select>
+          {status === "already_solved" && (
+            <select name="solve_method" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+              <option value="">How did you solve it?</option>
+              <option value="under_25">⚡ Solved in &lt; 25 min (revision in 14 days)</option>
+              <option value="over_25">⏱️ Solved in &gt; 25 min (revision in 7 days)</option>
+              <option value="with_hints">💡 Solved with hints (revision in 3 days)</option>
+              <option value="with_solution">📖 Solved with solution (revision in 1 day)</option>
+            </select>
+          )}
           <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium transition-colors">
             Save Problem
           </button>
@@ -104,18 +123,39 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
 
       <div className="space-y-2">
         {problems.map((p) => (
-          <div key={p.id} className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="font-medium">{p.name}</p>
-                {p.link && <a href={p.link} target="_blank" rel="noopener" className="text-blue-400"><ExternalLink size={14} /></a>}
+          editingId === p.id ? (
+            <form key={p.id} onSubmit={(e) => handleEdit(e, p)} className="bg-gray-900 border border-gray-700 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Editing</span>
+                <button type="button" onClick={() => setEditingId(null)} className="text-gray-400 hover:text-white"><X size={16} /></button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {p.pattern} · {p.effort} · {p.revision_count === -1 ? "Not yet solved" : `Rev #${p.revision_count}`} · {p.completed ? "✅ Mastered" : `Next: ${format(new Date(p.next_revision), "MMM d")}`}
-              </p>
+              <input name="name" defaultValue={p.name} required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+              <textarea name="description" defaultValue={p.description} className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" rows={2} />
+              <input name="link" defaultValue={p.link} className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+              <select name="pattern" defaultValue={p.pattern} required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+                {PATTERNS.map((pat) => <option key={pat} value={pat}>{pat}</option>)}
+              </select>
+              <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-sm font-medium">Save</button>
+            </form>
+          ) : (
+            <div key={p.id} className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-lg p-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">{p.name}</p>
+                  {p.link && <a href={p.link} target="_blank" rel="noopener" className="text-blue-400"><ExternalLink size={14} /></a>}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {p.pattern} · {SOLVE_METHOD_LABELS[p.effort as SolveMethod] || p.effort} · {p.revision_count === -1 ? "Not yet solved" : `Rev #${p.revision_count}`} · {p.completed ? "✅ Mastered" : `Next: ${format(new Date(p.next_revision), "MMM d")}`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {p.completed && <span className="text-xs bg-green-900/40 text-green-400 px-2 py-1 rounded">Done & Dusted</span>}
+                <button onClick={() => setEditingId(p.id)} className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white">
+                  <Pencil size={14} />
+                </button>
+              </div>
             </div>
-            {p.completed && <span className="text-xs bg-green-900/40 text-green-400 px-2 py-1 rounded">Done & Dusted</span>}
-          </div>
+          )
         ))}
       </div>
     </div>

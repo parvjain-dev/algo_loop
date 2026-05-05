@@ -2,7 +2,7 @@
 
 import { Problem, Revision } from "@/lib/types";
 import { format, isToday, isBefore, startOfDay, differenceInCalendarDays } from "date-fns";
-import { Flame, Calendar, CheckCircle2, AlertCircle, CalendarX } from "lucide-react";
+import { Flame, Calendar, CheckCircle2, AlertCircle, CalendarX, Sparkles, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 function calculateStreak(revisions: Revision[]): { daily: number; weekly: number } {
@@ -20,13 +20,28 @@ function calculateStreak(revisions: Revision[]): { daily: number; weekly: number
   return { daily, weekly: Math.floor(daily / 7) };
 }
 
+// Pick a "random" problem of the day that's consistent for the whole day
+function getProblemOfTheDay(problems: Problem[]): Problem | null {
+  const solved = problems.filter((p) => p.revision_count >= 0 && !p.completed);
+  if (!solved.length) return null;
+  // Use today's date as seed so it stays the same all day but changes daily
+  const todaySeed = new Date().toISOString().split("T")[0];
+  let hash = 0;
+  for (let i = 0; i < todaySeed.length; i++) {
+    hash = ((hash << 5) - hash) + todaySeed.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % solved.length;
+  return solved[index];
+}
+
 export function DashboardClient({ problems, revisions, rescheduledToday }: { problems: Problem[]; revisions: Revision[]; rescheduledToday: number }) {
-  const today = startOfDay(new Date());
   const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
   const dueToday = problems.filter((p) => !p.completed && isBefore(new Date(p.next_revision), endOfToday));
   const upcoming = problems.filter((p) => !p.completed && !isBefore(new Date(p.next_revision), endOfToday)).slice(0, 10);
   const streak = calculateStreak(revisions);
   const mastered = problems.filter((p) => p.completed).length;
+  const potd = getProblemOfTheDay(problems);
 
   const patternCounts = problems.reduce((acc, p) => {
     acc[p.pattern] = (acc[p.pattern] || 0) + 1;
@@ -45,6 +60,28 @@ export function DashboardClient({ problems, revisions, rescheduledToday }: { pro
         <StatCard icon={<CalendarX className="text-red-400" />} label="Rescheduled Today" value={String(rescheduledToday)} />
         <StatCard icon={<CheckCircle2 className="text-green-400" />} label="Mastered" value={`${mastered}/${problems.length}`} />
       </div>
+
+      {/* Problem of the Day */}
+      {potd && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Sparkles size={18} className="text-yellow-400" /> Problem of the Day
+          </h2>
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-lg">{potd.name}</p>
+                  {potd.link && <a href={potd.link} target="_blank" rel="noopener" className="text-blue-400"><ExternalLink size={14} /></a>}
+                </div>
+                <p className="text-sm text-gray-400 mt-1">{potd.pattern} · Rev #{potd.revision_count}</p>
+                {potd.description && <p className="text-sm text-gray-500 mt-2">{potd.description}</p>}
+              </div>
+              <span className="text-xs bg-yellow-900/40 text-yellow-400 px-3 py-1 rounded-full">Random Pick</span>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Due Today */}
       <section>
@@ -116,7 +153,7 @@ function ProblemRow({ problem }: { problem: Problem }) {
       <div>
         <p className="font-medium">{problem.name}</p>
         <p className="text-xs text-gray-400">
-          {problem.pattern} · {problem.effort} · {problem.revision_count === -1 ? "First solve" : `Rev #${problem.revision_count}`}
+          {problem.pattern} · {problem.revision_count === -1 ? "First solve" : `Rev #${problem.revision_count}`}
         </p>
       </div>
       <div className="flex items-center gap-2 text-sm">

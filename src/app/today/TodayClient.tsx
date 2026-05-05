@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Effort, getNextRevisionDate } from "@/lib/constants";
+import { SolveMethod, getNextRevisionDate } from "@/lib/constants";
 import { Problem } from "@/lib/types";
 import { ExternalLink, Trophy, RotateCcw, CalendarX } from "lucide-react";
 import { format } from "date-fns";
@@ -49,7 +49,7 @@ export function TodayClient({ problems: initial }: { problems: Problem[] }) {
     if (!user) return;
 
     const newCount = Math.max(problem.revision_count, 0) + 1;
-    const nextRevision = getNextRevisionDate(problem.effort as Effort, newCount);
+    const nextRevision = getNextRevisionDate(problem.effort as SolveMethod, newCount);
 
     // Record revision
     await supabase.from("revisions").insert({
