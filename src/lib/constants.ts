@@ -1,4 +1,4 @@
-import { addDays } from "date-fns";
+import { addDays, startOfDay } from "date-fns";
 
 export type SolveMethod = "under_25" | "over_25" | "with_hints" | "with_solution";
 
@@ -10,30 +10,24 @@ export const SOLVE_METHOD_DAYS: Record<SolveMethod, number> = {
 };
 
 export function getNextRevisionDate(method: SolveMethod): Date {
-  return addDays(new Date(), SOLVE_METHOD_DAYS[method]);
+  // Always set to start of the target day so timezone comparisons work
+  return startOfDay(addDays(new Date(), SOLVE_METHOD_DAYS[method]));
 }
 
 export const PATTERNS = [
-  "Array and Hashmap",
-  "Prefix Sum",
   "Two Pointers",
   "Sliding Window",
-  "Intervals",
-  "Matrix / 2D Grid ",
   "Binary Search",
   "Stack",
-  "Monotonic Stack",
   "Linked List",
   "Trees",
   "Graphs",
-  "Topological Sort",
   "Dynamic Programming",
   "Greedy",
   "Backtracking",
   "Heap/Priority Queue",
   "Trie",
   "Union Find",
-  "Divide and Conquer",
   "Bit Manipulation",
   "Math",
   "Other",

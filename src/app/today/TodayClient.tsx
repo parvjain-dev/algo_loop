@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { SolveMethod, getNextRevisionDate } from "@/lib/constants";
 import { Problem } from "@/lib/types";
 import { ExternalLink, Trophy, RotateCcw, CalendarX } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays, startOfDay } from "date-fns";
 
 export function TodayClient({ problems: initial }: { problems: Problem[] }) {
   const [problems, setProblems] = useState(initial);
@@ -76,7 +76,7 @@ export function TodayClient({ problems: initial }: { problems: Problem[] }) {
 
   const handleReschedule = async (problem: Problem) => {
     const supabase = createClient();
-    const tomorrow = new Date(Date.now() + 86400000).toISOString();
+    const tomorrow = startOfDay(addDays(new Date(), 1)).toISOString();
     await supabase.from("problems").update({ next_revision: tomorrow }).eq("id", problem.id);
 
     const { data: { user } } = await supabase.auth.getUser();

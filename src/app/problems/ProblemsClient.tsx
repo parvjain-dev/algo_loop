@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { PATTERNS, SolveMethod, getNextRevisionDate, SOLVE_METHOD_LABELS } from "@/lib/constants";
 import { Problem } from "@/lib/types";
 import { Plus, ExternalLink, Pencil, X } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays, startOfDay } from "date-fns";
 
 export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
   const [problems, setProblems] = useState(initial);
@@ -27,7 +27,7 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     // "solve_later" → schedule for tomorrow
     const nextRevision = solveStatus === "already_solved" && solveMethod
       ? getNextRevisionDate(solveMethod)
-      : new Date(Date.now() + 86400000);
+      : startOfDay(addDays(new Date(), 1)); // tomorrow start of day
 
     const { data } = await supabase.from("problems").insert({
       user_id: user.id,
