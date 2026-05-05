@@ -7,17 +7,20 @@ export default async function TodayPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  // Get all problems due today or overdue (not completed/mastered)
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-
+  // Fetch all non-completed problems, filter client-side same as dashboard
   const { data: problems } = await supabase
     .from("problems")
     .select("*")
     .eq("user_id", user.id)
     .eq("completed", false)
-    .lte("next_revision", today.toISOString())
     .order("next_revision", { ascending: true });
 
-  return <TodayClient problems={problems || []} />;
+  // Filter: due today or overdue (next_revision <= end of today)
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  const dueProblems = (problems || []).filter(
+    (p) => new Date(p.next_revision) <= endOfToday
+  );
+
+  return <TodayClient problems={dueProblems} />;
 }
