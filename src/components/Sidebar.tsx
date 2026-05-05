@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LayoutDashboard, PlusCircle, BarChart3, BookOpen, Bell, LogOut } from "lucide-react";
+import { LayoutDashboard, PlusCircle, BarChart3, BookOpen, Bell, LogOut, CalendarCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/today", label: "Today", icon: CalendarCheck },
   { href: "/problems", label: "Problems", icon: PlusCircle },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/journal", label: "Journal", icon: BookOpen },

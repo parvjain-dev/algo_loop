@@ -4,14 +4,12 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PATTERNS, Effort, getNextRevisionDate } from "@/lib/constants";
 import { Problem } from "@/lib/types";
-import { Plus, ExternalLink, Check, Clock } from "lucide-react";
+import { Plus, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
-import { useRouter } from "next/navigation";
 
 export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
   const [problems, setProblems] = useState(initial);
   const [showForm, setShowForm] = useState(false);
-  const router = useRouter();
 
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -21,9 +19,15 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     if (!user) return;
 
     const effort = form.get("effort") as Effort;
-    const nextRevision = getNextRevisionDate(effort, 0);
+    const status = form.get("status") as string;
 
-    const { data, error } = await supabase.from("problems").insert({
+    // "already_solved" → schedule first revision based on effort
+    // "solve_later" → schedule for tomorrow (user will solve it then)
+    const nextRevision = status === "already_solved"
+      ? getNextRevisionDate(effort, 0)
+      : new Date(Date.now() + 86400000); // tomorrow
+
+    const { data } = await supabase.from("problems").insert({
       user_id: user.id,
       name: form.get("name"),
       description: form.get("description"),
@@ -31,59 +35,24 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
       pattern: form.get("pattern"),
       effort,
       next_revision: nextRevision.toISOString(),
-      revision_count: 0,
+      revision_count: status === "already_solved" ? 0 : -1, // -1 means not yet solved first time
       completed: false,
     }).select().single();
 
     if (data) {
       setProblems([data, ...problems]);
       setShowForm(false);
-      // Create notification
+      const msg = status === "already_solved"
+        ? `"${data.name}" revision scheduled for ${format(nextRevision, "MMM d")}`
+        : `"${data.name}" added to solve tomorrow`;
       await supabase.from("notifications").insert({
         user_id: user.id,
-        title: "Problem Added",
-        message: `"${data.name}" scheduled for revision on ${format(nextRevision, "MMM d")}`,
+        title: status === "already_solved" ? "Problem Added" : "Problem Queued",
+        message: msg,
         problem_id: data.id,
         read: false,
       });
     }
-  };
-
-  const markDone = async (problem: Problem) => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const newCount = problem.revision_count + 1;
-    const nextRevision = getNextRevisionDate(problem.effort as Effort, newCount);
-
-    await supabase.from("revisions").insert({
-      problem_id: problem.id,
-      user_id: user.id,
-      completed_at: new Date().toISOString(),
-    });
-
-    await supabase.from("problems").update({
-      revision_count: newCount,
-      next_revision: nextRevision.toISOString(),
-    }).eq("id", problem.id);
-
-    await supabase.from("notifications").insert({
-      user_id: user.id,
-      title: "Revision Complete!",
-      message: `"${problem.name}" next revision: ${format(nextRevision, "MMM d")}`,
-      problem_id: problem.id,
-      read: false,
-    });
-
-    setProblems(problems.map((p) => p.id === problem.id ? { ...p, revision_count: newCount, next_revision: nextRevision.toISOString() } : p));
-  };
-
-  const postpone = async (problem: Problem) => {
-    const supabase = createClient();
-    const tomorrow = new Date(Date.now() + 86400000).toISOString();
-    await supabase.from("problems").update({ next_revision: tomorrow }).eq("id", problem.id);
-    setProblems(problems.map((p) => p.id === problem.id ? { ...p, next_revision: tomorrow } : p));
   };
 
   return (
@@ -112,6 +81,11 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
               <option value="high">High (hard, needs repetition)</option>
             </select>
           </div>
+          <select name="status" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+            <option value="">When are you solving this?</option>
+            <option value="already_solved">Already Solved — schedule revision</option>
+            <option value="solve_later">Solve Later — add to tomorrow&apos;s queue</option>
+          </select>
           <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium transition-colors">
             Save Problem
           </button>
@@ -126,16 +100,11 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
                 <p className="font-medium">{p.name}</p>
                 {p.link && <a href={p.link} target="_blank" rel="noopener" className="text-blue-400"><ExternalLink size={14} /></a>}
               </div>
-              <p className="text-xs text-gray-400 mt-1">{p.pattern} · {p.effort} · Rev #{p.revision_count} · Next: {format(new Date(p.next_revision), "MMM d")}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {p.pattern} · {p.effort} · {p.revision_count === -1 ? "Not yet solved" : `Rev #${p.revision_count}`} · {p.completed ? "✅ Mastered" : `Next: ${format(new Date(p.next_revision), "MMM d")}`}
+              </p>
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => markDone(p)} className="p-2 rounded bg-green-900/30 hover:bg-green-900/60 text-green-400" title="Mark Done">
-                <Check size={16} />
-              </button>
-              <button onClick={() => postpone(p)} className="p-2 rounded bg-yellow-900/30 hover:bg-yellow-900/60 text-yellow-400" title="Postpone">
-                <Clock size={16} />
-              </button>
-            </div>
+            {p.completed && <span className="text-xs bg-green-900/40 text-green-400 px-2 py-1 rounded">Done & Dusted</span>}
           </div>
         ))}
       </div>

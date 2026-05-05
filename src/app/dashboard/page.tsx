@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardClient } from "./DashboardClient";
+import { format } from "date-fns";
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabase();
@@ -20,5 +21,15 @@ export default async function DashboardPage() {
     .order("completed_at", { ascending: false })
     .limit(30);
 
-  return <DashboardClient problems={problems || []} revisions={revisions || []} />;
+  // Count reschedules today (notifications with "Rescheduled" title from today)
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const { count: rescheduledToday } = await supabase
+    .from("notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("title", "Rescheduled")
+    .gte("created_at", `${todayStr}T00:00:00`)
+    .lte("created_at", `${todayStr}T23:59:59`);
+
+  return <DashboardClient problems={problems || []} revisions={revisions || []} rescheduledToday={rescheduledToday || 0} />;
 }

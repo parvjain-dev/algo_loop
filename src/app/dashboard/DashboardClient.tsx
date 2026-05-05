@@ -2,7 +2,7 @@
 
 import { Problem, Revision } from "@/lib/types";
 import { format, isToday, isBefore, startOfDay, differenceInCalendarDays } from "date-fns";
-import { Flame, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
+import { Flame, Calendar, CheckCircle2, AlertCircle, CalendarX } from "lucide-react";
 import Link from "next/link";
 
 function calculateStreak(revisions: Revision[]): { daily: number; weekly: number } {
@@ -12,7 +12,7 @@ function calculateStreak(revisions: Revision[]): { daily: number; weekly: number
   const today = format(new Date(), "yyyy-MM-dd");
   const start = dates[0] === today ? 0 : -1;
   if (start === -1 && differenceInCalendarDays(new Date(), new Date(dates[0])) > 1) return { daily: 0, weekly: 0 };
-  for (let i = start === -1 ? 0 : 0; i < dates.length; i++) {
+  for (let i = 0; i < dates.length; i++) {
     const expected = format(new Date(Date.now() - (i + (start === -1 ? 1 : 0)) * 86400000), "yyyy-MM-dd");
     if (dates[i] === expected) daily++;
     else break;
@@ -20,11 +20,13 @@ function calculateStreak(revisions: Revision[]): { daily: number; weekly: number
   return { daily, weekly: Math.floor(daily / 7) };
 }
 
-export function DashboardClient({ problems, revisions }: { problems: Problem[]; revisions: Revision[] }) {
+export function DashboardClient({ problems, revisions, rescheduledToday }: { problems: Problem[]; revisions: Revision[]; rescheduledToday: number }) {
   const today = startOfDay(new Date());
-  const due = problems.filter((p) => !p.completed && isBefore(new Date(p.next_revision), new Date(Date.now() + 86400000)));
-  const upcoming = problems.filter((p) => !p.completed && !isBefore(new Date(p.next_revision), today)).slice(0, 10);
+  const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+  const dueToday = problems.filter((p) => !p.completed && isBefore(new Date(p.next_revision), endOfToday));
+  const upcoming = problems.filter((p) => !p.completed && !isBefore(new Date(p.next_revision), endOfToday)).slice(0, 10);
   const streak = calculateStreak(revisions);
+  const mastered = problems.filter((p) => p.completed).length;
 
   const patternCounts = problems.reduce((acc, p) => {
     acc[p.pattern] = (acc[p.pattern] || 0) + 1;
@@ -36,35 +38,44 @@ export function DashboardClient({ problems, revisions }: { problems: Problem[]; 
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <StatCard icon={<Flame className="text-orange-400" />} label="Daily Streak" value={`${streak.daily} days`} />
         <StatCard icon={<Flame className="text-purple-400" />} label="Weekly Streak" value={`${streak.weekly} weeks`} />
-        <StatCard icon={<AlertCircle className="text-yellow-400" />} label="Due Today" value={String(due.length)} />
-        <StatCard icon={<CheckCircle2 className="text-green-400" />} label="Total Problems" value={String(problems.length)} />
+        <StatCard icon={<AlertCircle className="text-yellow-400" />} label="Due Today" value={String(dueToday.length)} />
+        <StatCard icon={<CalendarX className="text-red-400" />} label="Rescheduled Today" value={String(rescheduledToday)} />
+        <StatCard icon={<CheckCircle2 className="text-green-400" />} label="Mastered" value={`${mastered}/${problems.length}`} />
       </div>
 
       {/* Due Today */}
       <section>
-        <h2 className="text-lg font-semibold mb-3">Due for Revision</h2>
-        {due.length === 0 ? (
-          <p className="text-gray-500 text-sm">No problems due today. Great job!</p>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">Due Today</h2>
+          <Link href="/today" className="text-sm text-blue-400 hover:text-blue-300">Go to Today →</Link>
+        </div>
+        {dueToday.length === 0 ? (
+          <p className="text-gray-500 text-sm">All clear! Nothing due today.</p>
         ) : (
           <div className="space-y-2">
-            {due.map((p) => (
+            {dueToday.slice(0, 5).map((p) => (
               <ProblemRow key={p.id} problem={p} />
             ))}
+            {dueToday.length > 5 && <p className="text-xs text-gray-500">+{dueToday.length - 5} more</p>}
           </div>
         )}
       </section>
 
-      {/* Timeline */}
+      {/* Upcoming */}
       <section>
         <h2 className="text-lg font-semibold mb-3">Upcoming Revisions</h2>
-        <div className="space-y-2">
-          {upcoming.map((p) => (
-            <ProblemRow key={p.id} problem={p} />
-          ))}
-        </div>
+        {upcoming.length === 0 ? (
+          <p className="text-gray-500 text-sm">No upcoming revisions.</p>
+        ) : (
+          <div className="space-y-2">
+            {upcoming.map((p) => (
+              <ProblemRow key={p.id} problem={p} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Pattern Breakdown */}
@@ -99,12 +110,14 @@ function ProblemRow({ problem }: { problem: Problem }) {
   const isOverdue = isBefore(new Date(problem.next_revision), startOfDay(new Date()));
   return (
     <Link
-      href={`/problems?id=${problem.id}`}
+      href="/today"
       className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-lg p-3 hover:border-gray-700 transition-colors"
     >
       <div>
         <p className="font-medium">{problem.name}</p>
-        <p className="text-xs text-gray-400">{problem.pattern} · {problem.effort} effort</p>
+        <p className="text-xs text-gray-400">
+          {problem.pattern} · {problem.effort} · {problem.revision_count === -1 ? "First solve" : `Rev #${problem.revision_count}`}
+        </p>
       </div>
       <div className="flex items-center gap-2 text-sm">
         <Calendar size={14} className={isOverdue ? "text-red-400" : "text-gray-400"} />
