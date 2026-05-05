@@ -37,8 +37,8 @@ function getProblemOfTheDay(problems: Problem[]): Problem | null {
 
 export function DashboardClient({ problems, revisions, rescheduledToday }: { problems: Problem[]; revisions: Revision[]; rescheduledToday: number }) {
   const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
-  const dueToday = problems.filter((p) => !p.completed && isBefore(new Date(p.next_revision), endOfToday));
-  const upcoming = problems.filter((p) => !p.completed && !isBefore(new Date(p.next_revision), endOfToday)).slice(0, 10);
+  const dueToday = problems.filter((p) => !p.completed && new Date(p.next_revision) <= endOfToday);
+  const upcoming = problems.filter((p) => !p.completed && new Date(p.next_revision) > endOfToday).slice(0, 10);
   const streak = calculateStreak(revisions);
   const mastered = problems.filter((p) => p.completed).length;
   const potd = getProblemOfTheDay(problems);
