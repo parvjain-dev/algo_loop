@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PATTERNS, SolveMethod, getNextRevisionDate, SOLVE_METHOD_LABELS } from "@/lib/constants";
 import { Problem } from "@/lib/types";
-import { Plus, ExternalLink, Pencil, X } from "lucide-react";
+import { Plus, ExternalLink, Pencil, X, Search } from "lucide-react";
 import { format, addDays, startOfDay } from "date-fns";
 
 export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
@@ -12,10 +12,34 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const [filterPattern, setFilterPattern] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [error, setError] = useState("");
+
+  const filtered = problems.filter((p) => {
+    const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+    const matchesPattern = !filterPattern || p.pattern === filterPattern;
+    const matchesStatus = !filterStatus
+      || (filterStatus === "mastered" && p.completed)
+      || (filterStatus === "active" && !p.completed && p.revision_count >= 0)
+      || (filterStatus === "unsolved" && p.revision_count === -1);
+    return matchesSearch && matchesPattern && matchesStatus;
+  });
 
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError("");
     const form = new FormData(e.currentTarget);
+    const name = (form.get("name") as string).trim();
+
+    // Duplicate check (case-insensitive)
+    const isDuplicate = problems.some((p) => p.name.toLowerCase() === name.toLowerCase());
+    if (isDuplicate) {
+      setError(`"${name}" already exists in your problems list.`);
+      return;
+    }
+
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -23,15 +47,13 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     const solveStatus = form.get("status") as string;
     const solveMethod = form.get("solve_method") as SolveMethod | null;
 
-    // "already_solved" → schedule revision based on solve method
-    // "solve_later" → schedule for tomorrow
     const nextRevision = solveStatus === "already_solved" && solveMethod
       ? getNextRevisionDate(solveMethod)
-      : startOfDay(addDays(new Date(), 1)); // tomorrow start of day
+      : startOfDay(addDays(new Date(), 1));
 
     const { data } = await supabase.from("problems").insert({
       user_id: user.id,
-      name: form.get("name"),
+      name,
       description: form.get("description"),
       link: form.get("link"),
       pattern: form.get("pattern"),
@@ -92,9 +114,33 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
         </button>
       </div>
 
+      {/* Search & Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search problems..."
+            className="w-full bg-gray-800 border border-gray-700 rounded pl-9 pr-3 py-2 text-sm"
+          />
+        </div>
+        <select value={filterPattern} onChange={(e) => setFilterPattern(e.target.value)} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+          <option value="">All Patterns</option>
+          {PATTERNS.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+          <option value="">All Status</option>
+          <option value="active">Active (in revision)</option>
+          <option value="unsolved">Not yet solved</option>
+          <option value="mastered">Mastered</option>
+        </select>
+      </div>
+
       {showForm && (
         <form onSubmit={handleAdd} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
           <input name="name" placeholder="Problem Name" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+          {error && <p className="text-red-400 text-xs">{error}</p>}
           <textarea name="description" placeholder="Description (optional)" className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" rows={2} />
           <input name="link" placeholder="Problem Link (LeetCode, etc.)" className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
           <select name="pattern" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
@@ -121,8 +167,10 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
         </form>
       )}
 
+      <p className="text-xs text-gray-500">{filtered.length} problem{filtered.length !== 1 ? "s" : ""}</p>
+
       <div className="space-y-2">
-        {problems.map((p) => (
+        {filtered.map((p) => (
           editingId === p.id ? (
             <form key={p.id} onSubmit={(e) => handleEdit(e, p)} className="bg-gray-900 border border-gray-700 rounded-lg p-4 space-y-3">
               <div className="flex justify-between items-center">
