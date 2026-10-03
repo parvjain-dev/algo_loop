@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { PATTERNS, SolveMethod, getNextRevisionDate, SOLVE_METHOD_LABELS } from "@/lib/constants";
-import { Problem } from "@/lib/types";
+import { PATTERNS, SolveMethod, getNextRevisionDate, SOLVE_METHOD_LABELS, DIFFICULTIES, DIFFICULTY_LABELS, DIFFICULTY_COLORS } from "@/lib/constants";
+import { Problem, Difficulty } from "@/lib/types";
 import { Plus, ExternalLink, Pencil, X, Search } from "lucide-react";
 import { format, addDays, startOfDay } from "date-fns";
 
@@ -57,6 +57,7 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
       description: form.get("description"),
       link: form.get("link"),
       pattern: form.get("pattern"),
+      difficulty: (form.get("difficulty") as Difficulty) || "medium",
       effort: solveMethod || "with_solution",
       next_revision: nextRevision.toISOString(),
       revision_count: solveStatus === "already_solved" ? 0 : -1,
@@ -98,6 +99,7 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
       description: form.get("description") as string,
       link: form.get("link") as string,
       pattern: form.get("pattern") as string,
+      difficulty: form.get("difficulty") as Difficulty,
     };
 
     await supabase.from("problems").update(updates).eq("id", problem.id);
@@ -147,6 +149,10 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
             <option value="">Select Pattern</option>
             {PATTERNS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
+          <select name="difficulty" required defaultValue="" className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+            <option value="" disabled>Select Difficulty</option>
+            {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
+          </select>
           <select name="status" required value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
             <option value="">When are you solving this?</option>
             <option value="already_solved">Already Solved — schedule revision</option>
@@ -183,6 +189,9 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
               <select name="pattern" defaultValue={p.pattern} required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
                 {PATTERNS.map((pat) => <option key={pat} value={pat}>{pat}</option>)}
               </select>
+              <select name="difficulty" defaultValue={p.difficulty} required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+                {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
+              </select>
               <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-sm font-medium">Save</button>
             </form>
           ) : (
@@ -190,6 +199,9 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{p.name}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded ${DIFFICULTY_COLORS[p.difficulty] || DIFFICULTY_COLORS.medium}`}>
+                    {DIFFICULTY_LABELS[p.difficulty] || DIFFICULTY_LABELS.medium}
+                  </span>
                   {p.link && <a href={p.link} target="_blank" rel="noopener" className="text-blue-400"><ExternalLink size={14} /></a>}
                 </div>
                 <p className="text-xs text-gray-400 mt-1">

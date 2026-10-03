@@ -1,24 +1,11 @@
 "use client";
 
 import { Problem, Revision } from "@/lib/types";
-import { format, isToday, isBefore, startOfDay, addDays, differenceInCalendarDays } from "date-fns";
+import { format, isToday, isBefore, startOfDay, addDays } from "date-fns";
 import { Flame, Calendar, CheckCircle2, AlertCircle, CalendarX, Sparkles, ExternalLink } from "lucide-react";
 import Link from "next/link";
-
-function calculateStreak(revisions: Revision[]): { daily: number; weekly: number } {
-  if (!revisions.length) return { daily: 0, weekly: 0 };
-  const dates = [...new Set(revisions.map((r) => format(new Date(r.completed_at), "yyyy-MM-dd")))].sort().reverse();
-  let daily = 0;
-  const today = format(new Date(), "yyyy-MM-dd");
-  const start = dates[0] === today ? 0 : -1;
-  if (start === -1 && differenceInCalendarDays(new Date(), new Date(dates[0])) > 1) return { daily: 0, weekly: 0 };
-  for (let i = 0; i < dates.length; i++) {
-    const expected = format(new Date(Date.now() - (i + (start === -1 ? 1 : 0)) * 86400000), "yyyy-MM-dd");
-    if (dates[i] === expected) daily++;
-    else break;
-  }
-  return { daily, weekly: Math.floor(daily / 7) };
-}
+import { ActivityCalendar } from "@/components/ActivityCalendar";
+import { buildActivity, computeStreaks } from "@/lib/streak";
 
 // Pick a "random" problem of the day that's consistent for the whole day
 function getProblemOfTheDay(problems: Problem[]): Problem | null {
@@ -35,11 +22,13 @@ function getProblemOfTheDay(problems: Problem[]): Problem | null {
   return solved[index];
 }
 
-export function DashboardClient({ problems, revisions, rescheduledToday }: { problems: Problem[]; revisions: Revision[]; rescheduledToday: number }) {
+export function DashboardClient({ problems, revisions, rescheduledToday }: { problems: Problem[]; revisions: Pick<Revision, "completed_at">[]; rescheduledToday: number }) {
   const startOfTomorrow = startOfDay(addDays(new Date(), 1));
   const dueToday = problems.filter((p) => !p.completed && new Date(p.next_revision) < startOfTomorrow);
   const upcoming = problems.filter((p) => !p.completed && new Date(p.next_revision) >= startOfTomorrow).slice(0, 10);
-  const streak = calculateStreak(revisions);
+  const activity = buildActivity(revisions);
+  const streakStats = computeStreaks(activity);
+  const streak = { daily: streakStats.current, weekly: Math.floor(streakStats.current / 7) };
   const mastered = problems.filter((p) => p.completed).length;
   const potd = getProblemOfTheDay(problems);
 
@@ -54,12 +43,15 @@ export function DashboardClient({ problems, revisions, rescheduledToday }: { pro
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <StatCard icon={<Flame className="text-orange-400" />} label="Daily Streak" value={`${streak.daily} days`} />
-        <StatCard icon={<Flame className="text-purple-400" />} label="Weekly Streak" value={`${streak.weekly} weeks`} />
+        <StatCard icon={<Flame className="text-orange-400" />} label="Daily Streak" value={`${streak.daily} ${streak.daily === 1 ? "day" : "days"}`} />
+        <StatCard icon={<Flame className="text-purple-400" />} label="Weekly Streak" value={`${streak.weekly} ${streak.weekly === 1 ? "week" : "weeks"}`} />
         <StatCard icon={<AlertCircle className="text-yellow-400" />} label="Due Today" value={String(dueToday.length)} />
         <StatCard icon={<CalendarX className="text-red-400" />} label="Rescheduled Today" value={String(rescheduledToday)} />
         <StatCard icon={<CheckCircle2 className="text-green-400" />} label="Mastered" value={`${mastered}/${problems.length}`} />
       </div>
+
+      {/* Activity calendar */}
+      <ActivityCalendar activity={activity} />
 
       {/* Problem of the Day */}
       {potd && (

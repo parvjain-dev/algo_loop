@@ -47,3 +47,41 @@ export const SOLVE_METHOD_LABELS: Record<SolveMethod, string> = {
   with_hints: "Solved with hints",
   with_solution: "Solved with solution",
 };
+
+// ---------- Difficulty & weekly contest ----------
+
+export const DIFFICULTIES = ["easy", "medium", "hard"] as const;
+
+export const DIFFICULTY_LABELS: Record<(typeof DIFFICULTIES)[number], string> = {
+  easy: "Easy",
+  medium: "Medium",
+  hard: "Hard",
+};
+
+export const DIFFICULTY_COLORS: Record<(typeof DIFFICULTIES)[number], string> = {
+  easy: "bg-green-900/40 text-green-400",
+  medium: "bg-yellow-900/40 text-yellow-400",
+  hard: "bg-red-900/40 text-red-400",
+};
+
+// Minutes allowed per problem, by difficulty
+export const CONTEST_MINUTES: Record<(typeof DIFFICULTIES)[number], number> = {
+  easy: 20,
+  medium: 30,
+  hard: 50,
+};
+
+// LeetCode-style: points rise with each question (sorted easy -> hard)
+export const CONTEST_POINTS = [3, 4, 5, 6] as const;
+
+// Standard mix: 1 easy, 2 medium, 1 hard (filled from what the user has if short)
+export const CONTEST_MIX: Record<(typeof DIFFICULTIES)[number], number> = {
+  easy: 1,
+  medium: 2,
+  hard: 1,
+};
+
+export const CONTEST_SIZE = 4;
+
+// Contest unlocks when the user has MORE than this many problems
+export const CONTEST_MIN_PROBLEMS = 10;

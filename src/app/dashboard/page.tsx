@@ -14,12 +14,20 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .order("next_revision", { ascending: true });
 
-  const { data: revisions } = await supabase
-    .from("revisions")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("completed_at", { ascending: false })
-    .limit(30);
+  // Every revision date (all years, for the year picker). Supabase returns at most
+  // 1000 rows per request, so page through them.
+  const revisions: { completed_at: string }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
+      .from("revisions")
+      .select("completed_at")
+      .eq("user_id", user.id)
+      .order("completed_at", { ascending: false })
+      .range(from, from + 999);
+    if (!data?.length) break;
+    revisions.push(...data);
+    if (data.length < 1000) break;
+  }
 
   // Count reschedules today (notifications with "Rescheduled" title from today)
   const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -31,5 +39,5 @@ export default async function DashboardPage() {
     .gte("created_at", `${todayStr}T00:00:00`)
     .lte("created_at", `${todayStr}T23:59:59`);
 
-  return <DashboardClient problems={problems || []} revisions={revisions || []} rescheduledToday={rescheduledToday || 0} />;
+  return <DashboardClient problems={problems || []} revisions={revisions} rescheduledToday={rescheduledToday || 0} />;
 }

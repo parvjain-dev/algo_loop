@@ -1,3 +1,5 @@
+export type Difficulty = "easy" | "medium" | "hard";
+
 export type Problem = {
   id: string;
   user_id: string;
@@ -6,6 +8,7 @@ export type Problem = {
   link: string;
   pattern: string;
   effort: string;
+  difficulty: Difficulty;
   revision_count: number;
   next_revision: string;
   completed: boolean;
@@ -28,4 +31,27 @@ export type Notification = {
   read: boolean;
   created_at: string;
   problem_id: string | null;
+};
+
+export type ContestProblem = {
+  id: string;
+  name: string;
+  link: string;
+  pattern: string;
+  difficulty: Difficulty;
+  points: number;
+  minutes: number;
+  solved: boolean;
+};
+
+export type ContestAttempt = {
+  id: string;
+  user_id: string;
+  week_start: string; // yyyy-MM-dd (Monday)
+  problems: ContestProblem[];
+  duration_seconds: number;
+  started_at: string;
+  submitted_at: string | null;
+  score: number;
+  solved_count: number;
 };
