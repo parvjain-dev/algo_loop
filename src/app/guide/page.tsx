@@ -23,7 +23,7 @@ import {
   Search,
   Lock,
 } from "lucide-react";
-import { CONTEST_MIN_PROBLEMS, CONTEST_MINUTES, CONTEST_POINTS } from "@/lib/constants";
+import { CONTEST_MIN_PROBLEMS, CONTEST_MINUTES, CONTEST_POINTS, DAILY_CAP } from "@/lib/constants";
 
 const TOC = [
   { id: "quick-start", label: "Quick start" },
@@ -45,6 +45,14 @@ const FAQ = [
   {
     q: "Why didn't my streak go up after I added a problem?",
     a: "A problem counts for the day only if you add it as Already Solved. Problems added as Solve Later count on the day you actually finish them in Today. Rescheduling a problem doesn't count.",
+  },
+  {
+    q: "Why did a problem move to a different day?",
+    a: `Each day holds at most ${DAILY_CAP} problems. If more are due, the extra ones are moved to the nearest days that still have room, and Today tells you where they went. The same applies when you add a problem or finish a revision: if its ideal day is full, it takes the next free day. You'll find a summary in Notifications.`,
+  },
+  {
+    q: "I finished my 3. Why isn't there more in Today?",
+    a: `That's the daily limit working. ${DAILY_CAP} a day keeps it doable, and the rest are already lined up for the next days. Come back tomorrow, or add new problems as Already Solved if you want to do more.`,
   },
   {
     q: "What does Done & Dusted do?",
@@ -279,8 +287,18 @@ export default function GuidePage() {
                 <p className="font-semibold text-amber-400 flex items-center gap-2">
                   <CalendarCheck size={15} /> Reschedule
                 </p>
-                <p className="text-gray-400">Not today? Push it to tomorrow. It doesn&apos;t count toward your streak.</p>
+                <p className="text-gray-400">Not today? Push it to the next day with room. It doesn&apos;t count toward your streak.</p>
               </div>
+            </div>
+            <div className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-4 text-sm space-y-1">
+              <p className="font-semibold text-violet-300">Never more than {DAILY_CAP} a day</p>
+              <p className="text-gray-400 leading-relaxed">
+                If more than {DAILY_CAP} problems are due (say you skipped a few days), Today shows the {DAILY_CAP} that
+                matter most: <b className="text-white">overdue first</b>, then the ones that were{" "}
+                <b className="text-white">hardest last time</b>, then the oldest. The rest are moved to the nearest days
+                with room, and you&apos;ll see a note saying where they went. Nothing is deleted, and a day never
+                goes over {DAILY_CAP}.
+              </p>
             </div>
           </div>
         </Section>

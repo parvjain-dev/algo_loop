@@ -6,6 +6,7 @@ import { PATTERNS, SolveMethod, getNextRevisionDate, SOLVE_METHOD_LABELS, DIFFIC
 import { Problem, Difficulty } from "@/lib/types";
 import { Plus, ExternalLink, Pencil, X, Search } from "lucide-react";
 import { format, addDays, startOfDay } from "date-fns";
+import { localDayKey, pickRevisionDay } from "@/lib/scheduling";
 
 export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
   const [problems, setProblems] = useState(initial);
@@ -47,9 +48,12 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     const solveStatus = form.get("status") as string;
     const solveMethod = form.get("solve_method") as SolveMethod | null;
 
-    const nextRevision = solveStatus === "already_solved" && solveMethod
+    // Ideal day, or the next day with room if that day already has the daily maximum
+    const idealRevision = solveStatus === "already_solved" && solveMethod
       ? getNextRevisionDate(solveMethod)
       : startOfDay(addDays(new Date(), 1));
+    const nextRevision = pickRevisionDay(problems, idealRevision);
+    const shifted = localDayKey(nextRevision) !== localDayKey(idealRevision);
 
     const { data } = await supabase.from("problems").insert({
       user_id: user.id,
@@ -81,8 +85,10 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
         user_id: user.id,
         title: solveStatus === "already_solved" ? "Problem Added" : "Problem Queued",
         message: solveStatus === "already_solved"
-          ? `"${data.name}" revision in ${format(nextRevision, "MMM d")}`
-          : `"${data.name}" added to solve tomorrow`,
+          ? `"${data.name}" revision in ${format(nextRevision, "MMM d")}${shifted ? " (nearest day with room)" : ""}`
+          : shifted
+            ? `"${data.name}" added to solve on ${format(nextRevision, "EEE d MMM")} (tomorrow is full)`
+            : `"${data.name}" added to solve tomorrow`,
         problem_id: data.id,
         read: false,
       });

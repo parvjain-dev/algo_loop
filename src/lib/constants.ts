@@ -85,3 +85,8 @@ export const CONTEST_SIZE = 4;
 
 // Contest unlocks when the user has MORE than this many problems
 export const CONTEST_MIN_PROBLEMS = 10;
+
+// ---------- Daily limit ----------
+
+// Max problems that can be due on any single day. Extras are moved to the next day with room.
+export const DAILY_CAP = 3;

@@ -4,6 +4,8 @@ import { Problem, Revision } from "@/lib/types";
 import { format, isToday, isBefore, startOfDay, addDays } from "date-fns";
 import { Flame, Calendar, CheckCircle2, AlertCircle, CalendarX, Sparkles, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
+import { applyMoves, planToday } from "@/lib/scheduling";
 import { ActivityCalendar } from "@/components/ActivityCalendar";
 import { buildActivity, computeStreaks } from "@/lib/streak";
 
@@ -22,10 +24,28 @@ function getProblemOfTheDay(problems: Problem[]): Problem | null {
   return solved[index];
 }
 
+const subscribe = () => () => {};
+
 export function DashboardClient({ problems, revisions, rescheduledToday }: { problems: Problem[]; revisions: Pick<Revision, "completed_at">[]; rescheduledToday: number }) {
+  // Dates and streaks depend on the user's time zone, so render in the browser only
+  const mounted = useSyncExternalStore(subscribe, () => true, () => false);
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin h-6 w-6 border-2 border-green-400 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  // Same plan as the Today page: at most DAILY_CAP due today, the rest shown on their new days
   const startOfTomorrow = startOfDay(addDays(new Date(), 1));
-  const dueToday = problems.filter((p) => !p.completed && new Date(p.next_revision) < startOfTomorrow);
-  const upcoming = problems.filter((p) => !p.completed && new Date(p.next_revision) >= startOfTomorrow).slice(0, 10);
+  const plan = planToday(problems, new Date());
+  const planned = applyMoves(problems, plan.moves);
+  const dueToday = plan.keep;
+  const upcoming = planned
+    .filter((p) => !p.completed && new Date(p.next_revision) >= startOfTomorrow)
+    .sort((a, b) => new Date(a.next_revision).getTime() - new Date(b.next_revision).getTime())
+    .slice(0, 10);
   const activity = buildActivity(revisions);
   const streakStats = computeStreaks(activity);
   const streak = { daily: streakStats.current, weekly: Math.floor(streakStats.current / 7) };
