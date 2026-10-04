@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SolveMethod, getNextRevisionDate } from "@/lib/constants";
 import { Problem } from "@/lib/types";
 import { ExternalLink, Trophy, RotateCcw, CalendarX } from "lucide-react";
 import { format, addDays, startOfDay } from "date-fns";
+import { isDueByToday } from "@/lib/utils";
+
+const subscribe = () => () => {};
 
 export function TodayClient({ problems: initial }: { problems: Problem[] }) {
-  const [problems, setProblems] = useState(initial);
+  // Wait for the browser: "today" depends on the user's time zone, which the server doesn't know
+  const mounted = useSyncExternalStore(subscribe, () => true, () => false);
+  const [all, setProblems] = useState(initial);
+  const problems = all.filter((p) => isDueByToday(p.next_revision));
   const [showModal, setShowModal] = useState<Problem | null>(null);
   const [showMethodPicker, setShowMethodPicker] = useState(false);
   const [rescheduleCount, setRescheduleCount] = useState(0);
@@ -37,7 +43,7 @@ export function TodayClient({ problems: initial }: { problems: Problem[] }) {
       read: false,
     });
 
-    setProblems(problems.filter((p) => p.id !== problem.id));
+    setProblems(all.filter((p) => p.id !== problem.id));
     setShowModal(null);
     setShowMethodPicker(false);
   };
@@ -69,7 +75,7 @@ export function TodayClient({ problems: initial }: { problems: Problem[] }) {
       read: false,
     });
 
-    setProblems(problems.filter((p) => p.id !== problem.id));
+    setProblems(all.filter((p) => p.id !== problem.id));
     setShowModal(null);
     setShowMethodPicker(false);
   };
@@ -90,9 +96,17 @@ export function TodayClient({ problems: initial }: { problems: Problem[] }) {
       });
     }
 
-    setProblems(problems.filter((p) => p.id !== problem.id));
+    setProblems(all.filter((p) => p.id !== problem.id));
     setRescheduleCount((c) => c + 1);
   };
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin h-6 w-6 border-2 border-green-400 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
