@@ -25,7 +25,7 @@ import {
 } from "@/lib/contest";
 import type { ContestAttempt, Problem } from "@/lib/types";
 
-type PoolProblem = Pick<Problem, "id" | "name" | "link" | "pattern" | "difficulty">;
+type PoolProblem = Pick<Problem, "id" | "name" | "link" | "pattern" | "patterns" | "difficulty">;
 
 const UNLOCK_COUNT = CONTEST_MIN_PROBLEMS + 1; // "more than 10" => 11+
 const MAX_SCORE = CONTEST_POINTS.reduce((a, b) => a + b, 0);

@@ -4,13 +4,14 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import { BookOpen, Save } from "lucide-react";
+import { getPatterns } from "@/lib/utils";
 
 type RevisionWithProblem = {
   id: string;
   problem_id: string;
   completed_at: string;
   reflection: string | null;
-  problems: { name: string; pattern: string } | null;
+  problems: { name: string; pattern: string; patterns: string[] | null } | null;
 };
 
 export function JournalClient({ revisions: initial }: { revisions: RevisionWithProblem[] }) {
@@ -39,7 +40,7 @@ export function JournalClient({ revisions: initial }: { revisions: RevisionWithP
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <p className="font-medium">{r.problems?.name || "Unknown"}</p>
-                  <p className="text-xs text-gray-400">{r.problems?.pattern} · {format(new Date(r.completed_at), "MMM d, yyyy")}</p>
+                  <p className="text-xs text-gray-400">{r.problems ? getPatterns(r.problems).join(", ") : ""} · {format(new Date(r.completed_at), "MMM d, yyyy")}</p>
                 </div>
                 {editing !== r.id && (
                   <button

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { DAILY_CAP, SolveMethod, getNextRevisionDate } from "@/lib/constants";
 import { applyMoves, describeMoves, localDayKey, pickRevisionDay, planToday } from "@/lib/scheduling";
 import { Problem } from "@/lib/types";
+import { getPatterns } from "@/lib/utils";
 import { ExternalLink, Trophy, RotateCcw, CalendarX, Info } from "lucide-react";
 import { format, addDays, startOfDay } from "date-fns";
 
@@ -221,7 +222,7 @@ export function TodayClient({ problems: initial }: { problems: Problem[] }) {
                     {p.link && <a href={p.link} target="_blank" rel="noopener" className="text-blue-400"><ExternalLink size={14} /></a>}
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    {p.pattern} · {p.revision_count === -1 ? "First time solving" : `Revision #${p.revision_count + 1}`}
+                    {getPatterns(p).join(", ")} · {p.revision_count === -1 ? "First time solving" : `Revision #${p.revision_count + 1}`}
                     {localDayKey(p.next_revision) < localDayKey(now) && (
                       <span className="text-red-400"> · overdue since {format(new Date(p.next_revision), "MMM d")}</span>
                     )}

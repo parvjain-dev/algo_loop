@@ -2,10 +2,12 @@
 
 import { Problem, Revision } from "@/lib/types";
 import { format, subDays } from "date-fns";
+import { getPatterns } from "@/lib/utils";
 
 export function AnalyticsClient({ problems, revisions }: { problems: Problem[]; revisions: Revision[] }) {
+  // A problem with several patterns counts once under each of them
   const patternCounts = problems.reduce((acc, p) => {
-    acc[p.pattern] = (acc[p.pattern] || 0) + 1;
+    for (const pat of getPatterns(p)) acc[pat] = (acc[pat] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 

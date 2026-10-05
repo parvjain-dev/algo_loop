@@ -8,6 +8,7 @@ import { useSyncExternalStore } from "react";
 import { applyMoves, planToday } from "@/lib/scheduling";
 import { ActivityCalendar } from "@/components/ActivityCalendar";
 import { buildActivity, computeStreaks } from "@/lib/streak";
+import { getPatterns } from "@/lib/utils";
 
 // Pick a "random" problem of the day that's consistent for the whole day
 function getProblemOfTheDay(problems: Problem[]): Problem | null {
@@ -52,8 +53,9 @@ export function DashboardClient({ problems, revisions, rescheduledToday }: { pro
   const mastered = problems.filter((p) => p.completed).length;
   const potd = getProblemOfTheDay(problems);
 
+  // A problem with several patterns counts once under each of them
   const patternCounts = problems.reduce((acc, p) => {
-    acc[p.pattern] = (acc[p.pattern] || 0) + 1;
+    for (const pat of getPatterns(p)) acc[pat] = (acc[pat] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
@@ -86,7 +88,7 @@ export function DashboardClient({ problems, revisions, rescheduledToday }: { pro
                   <p className="font-medium text-lg">{potd.name}</p>
                   {potd.link && <a href={potd.link} target="_blank" rel="noopener" className="text-blue-400"><ExternalLink size={14} /></a>}
                 </div>
-                <p className="text-sm text-gray-400 mt-1">{potd.pattern} · Rev #{potd.revision_count}</p>
+                <p className="text-sm text-gray-400 mt-1">{getPatterns(potd).join(", ")} · Rev #{potd.revision_count}</p>
                 {potd.description && <p className="text-sm text-gray-500 mt-2">{potd.description}</p>}
               </div>
               <span className="text-xs bg-yellow-900/40 text-yellow-400 px-3 py-1 rounded-full">Random Pick</span>
@@ -165,7 +167,7 @@ function ProblemRow({ problem }: { problem: Problem }) {
       <div>
         <p className="font-medium">{problem.name}</p>
         <p className="text-xs text-gray-400">
-          {problem.pattern} · {problem.revision_count === -1 ? "First solve" : `Rev #${problem.revision_count}`}
+          {getPatterns(problem).join(", ")} · {problem.revision_count === -1 ? "First solve" : `Rev #${problem.revision_count}`}
         </p>
       </div>
       <div className="flex items-center gap-2 text-sm">

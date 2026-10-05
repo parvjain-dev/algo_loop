@@ -9,7 +9,7 @@ export default async function JournalPage() {
 
   const { data: revisions } = await supabase
     .from("revisions")
-    .select("*, problems(name, pattern)")
+    .select("*, problems(name, pattern, patterns)")
     .eq("user_id", user.id)
     .order("completed_at", { ascending: false });
 

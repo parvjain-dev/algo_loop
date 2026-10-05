@@ -6,6 +6,7 @@ import {
   CONTEST_SIZE,
   DIFFICULTIES,
 } from "@/lib/constants";
+import { getPatterns } from "@/lib/utils";
 import type { ContestAttempt, ContestProblem, Difficulty, Problem } from "@/lib/types";
 
 const KEY = "yyyy-MM-dd";
@@ -29,7 +30,7 @@ function shuffle<T>(items: T[]): T[] {
   return a;
 }
 
-type PoolProblem = Pick<Problem, "id" | "name" | "link" | "pattern" | "difficulty">;
+type PoolProblem = Pick<Problem, "id" | "name" | "link" | "pattern" | "patterns" | "difficulty">;
 
 /**
  * Pick the contest: 1 easy, 2 medium, 1 hard from ALL the user's problems
@@ -62,7 +63,7 @@ export function pickContestProblems(problems: PoolProblem[]): ContestProblem[] {
       id: p.id,
       name: p.name,
       link: p.link,
-      pattern: p.pattern,
+      pattern: getPatterns(p).join(", "),
       difficulty: p.difficulty,
       points: CONTEST_POINTS[i] ?? CONTEST_POINTS[CONTEST_POINTS.length - 1],
       minutes: CONTEST_MINUTES[p.difficulty] ?? CONTEST_MINUTES.medium,

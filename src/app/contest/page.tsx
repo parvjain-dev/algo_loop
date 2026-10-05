@@ -10,7 +10,7 @@ export default async function ContestPage() {
   // The contest draws from ALL of the user's problems, whatever their status
   const { data: problems } = await supabase
     .from("problems")
-    .select("id, name, link, pattern, difficulty")
+    .select("id, name, link, pattern, patterns, difficulty")
     .eq("user_id", user.id);
 
   const { data: attempts } = await supabase
