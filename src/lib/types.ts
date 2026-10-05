@@ -6,7 +6,8 @@ export type Problem = {
   name: string;
   description: string;
   link: string;
-  pattern: string;
+  pattern: string; // primary (first) pattern, kept for backward compatibility
+  patterns: string[]; // all patterns; use getPatterns() to read safely
   effort: string;
   difficulty: Difficulty;
   revision_count: number;

@@ -36,6 +36,15 @@ export const PATTERNS = [
   "Divide and Conquer",
   "Bit Manipulation",
   "Math",
+  "Arrays",
+  "Strings",
+  "Hashing / Hash Map",
+  "Sorting",
+  "Recursion",
+  "Bitmask DP",
+  "Segment Tree / Fenwick Tree",
+  "Design",
+  "Simulation",
   "Other",
 ] as const;
 

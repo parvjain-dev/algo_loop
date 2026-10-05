@@ -7,6 +7,9 @@ import { Problem, Difficulty } from "@/lib/types";
 import { Plus, ExternalLink, Pencil, X, Search } from "lucide-react";
 import { format, addDays, startOfDay } from "date-fns";
 import { localDayKey, pickRevisionDay } from "@/lib/scheduling";
+import { getPatterns } from "@/lib/utils";
+import { PatternPicker } from "@/components/PatternPicker";
+import { AddProblemModal } from "@/components/AddProblemModal";
 
 export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
   const [problems, setProblems] = useState(initial);
@@ -17,10 +20,13 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
   const [filterPattern, setFilterPattern] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [error, setError] = useState("");
+  const [selectedPatterns, setSelectedPatterns] = useState<string[]>([]);
+  const [editPatterns, setEditPatterns] = useState<string[]>([]);
+  const [editError, setEditError] = useState("");
 
   const filtered = problems.filter((p) => {
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    const matchesPattern = !filterPattern || p.pattern === filterPattern;
+    const matchesPattern = !filterPattern || getPatterns(p).includes(filterPattern);
     const matchesStatus = !filterStatus
       || (filterStatus === "mastered" && p.completed)
       || (filterStatus === "active" && !p.completed && p.revision_count >= 0)
@@ -33,6 +39,11 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     setError("");
     const form = new FormData(e.currentTarget);
     const name = (form.get("name") as string).trim();
+
+    if (selectedPatterns.length === 0) {
+      setError("Select at least one pattern.");
+      return;
+    }
 
     // Duplicate check (case-insensitive)
     const isDuplicate = problems.some((p) => p.name.toLowerCase() === name.toLowerCase());
@@ -60,7 +71,8 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
       name,
       description: form.get("description"),
       link: form.get("link"),
-      pattern: form.get("pattern"),
+      pattern: selectedPatterns[0],
+      patterns: selectedPatterns,
       difficulty: (form.get("difficulty") as Difficulty) || "medium",
       effort: solveMethod || "with_solution",
       next_revision: nextRevision.toISOString(),
@@ -72,6 +84,7 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
       setProblems([data, ...problems]);
       setShowForm(false);
       setStatus("");
+      setSelectedPatterns([]);
 
       if (solveStatus === "already_solved") {
         await supabase.from("revisions").insert({
@@ -97,6 +110,11 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
 
   const handleEdit = async (e: React.FormEvent<HTMLFormElement>, problem: Problem) => {
     e.preventDefault();
+    if (editPatterns.length === 0) {
+      setEditError("Select at least one pattern.");
+      return;
+    }
+    setEditError("");
     const form = new FormData(e.currentTarget);
     const supabase = createClient();
 
@@ -104,7 +122,8 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
       name: form.get("name") as string,
       description: form.get("description") as string,
       link: form.get("link") as string,
-      pattern: form.get("pattern") as string,
+      pattern: editPatterns[0],
+      patterns: editPatterns,
       difficulty: form.get("difficulty") as Difficulty,
     };
 
@@ -117,7 +136,7 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Problems</h1>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
           <Plus size={16} /> Add Problem
         </button>
       </div>
@@ -145,39 +164,16 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
         </select>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleAdd} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
-          <input name="name" placeholder="Problem Name" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
-          {error && <p className="text-red-400 text-xs">{error}</p>}
-          <textarea name="description" placeholder="Description (optional)" className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" rows={2} />
-          <input name="link" placeholder="Problem Link (LeetCode, etc.)" className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
-          <select name="pattern" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
-            <option value="">Select Pattern</option>
-            {PATTERNS.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <select name="difficulty" required defaultValue="" className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
-            <option value="" disabled>Select Difficulty</option>
-            {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
-          </select>
-          <select name="status" required value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
-            <option value="">When are you solving this?</option>
-            <option value="already_solved">Already Solved — schedule revision</option>
-            <option value="solve_later">Solve Later — add to tomorrow&apos;s queue</option>
-          </select>
-          {status === "already_solved" && (
-            <select name="solve_method" required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
-              <option value="">How did you solve it?</option>
-              <option value="under_25">⚡ Solved in &lt; 25 min (revision in 14 days)</option>
-              <option value="over_25">⏱️ Solved in &gt; 25 min (revision in 7 days)</option>
-              <option value="with_hints">💡 Solved with hints (revision in 3 days)</option>
-              <option value="with_solution">📖 Solved with solution (revision in 1 day)</option>
-            </select>
-          )}
-          <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium transition-colors">
-            Save Problem
-          </button>
-        </form>
-      )}
+      <AddProblemModal
+        open={showForm}
+        onClose={() => { setShowForm(false); setError(""); setStatus(""); setSelectedPatterns([]); }}
+        onSubmit={handleAdd}
+        error={error}
+        status={status}
+        onStatusChange={setStatus}
+        patterns={selectedPatterns}
+        onPatternsChange={setSelectedPatterns}
+      />
 
       <p className="text-xs text-gray-500">{filtered.length} problem{filtered.length !== 1 ? "s" : ""}</p>
 
@@ -192,9 +188,8 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
               <input name="name" defaultValue={p.name} required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
               <textarea name="description" defaultValue={p.description} className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" rows={2} />
               <input name="link" defaultValue={p.link} className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
-              <select name="pattern" defaultValue={p.pattern} required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
-                {PATTERNS.map((pat) => <option key={pat} value={pat}>{pat}</option>)}
-              </select>
+              <PatternPicker value={editPatterns} onChange={setEditPatterns} />
+              {editError && <p className="text-red-400 text-xs">{editError}</p>}
               <select name="difficulty" defaultValue={p.difficulty} required className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
                 {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
               </select>
@@ -211,12 +206,12 @@ export function ProblemsClient({ problems: initial }: { problems: Problem[] }) {
                   {p.link && <a href={p.link} target="_blank" rel="noopener" className="text-blue-400"><ExternalLink size={14} /></a>}
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  {p.pattern} · {SOLVE_METHOD_LABELS[p.effort as SolveMethod] || p.effort} · {p.revision_count === -1 ? "Not yet solved" : `Rev #${p.revision_count}`} · {p.completed ? "✅ Mastered" : `Next: ${format(new Date(p.next_revision), "MMM d")}`}
+                  {getPatterns(p).join(", ")} · {SOLVE_METHOD_LABELS[p.effort as SolveMethod] || p.effort} · {p.revision_count === -1 ? "Not yet solved" : `Rev #${p.revision_count}`} · {p.completed ? "✅ Mastered" : `Next: ${format(new Date(p.next_revision), "MMM d")}`}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 {p.completed && <span className="text-xs bg-green-900/40 text-green-400 px-2 py-1 rounded">Done & Dusted</span>}
-                <button onClick={() => setEditingId(p.id)} className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white">
+                <button onClick={() => { setEditingId(p.id); setEditPatterns(getPatterns(p)); setEditError(""); }} className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white">
                   <Pencil size={14} />
                 </button>
               </div>
