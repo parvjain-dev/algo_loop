@@ -148,6 +148,8 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
   // null until mounted: the server and browser clocks differ, so the timer only renders in the browser.
   const [now, setNow] = useState<number | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [finishReason, setFinishReason] = useState<"submitted" | "timeout">("submitted");
+  const [finishError, setFinishError] = useState("");
   const [showBrief, setShowBrief] = useState(true);
   const [openTests, setOpenTests] = useState<Set<string>>(new Set());
 
@@ -240,19 +242,32 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
   const closingPending = allDone && closingIndex < closingQuestions.length;
 
   const finishingRef = useRef(false);
+  const endLogged = useRef(false);
   const finish = useCallback(
     async (reason: "submitted" | "timeout") => {
       if (finishingRef.current) return;
       finishingRef.current = true;
       setFinishing(true);
-      log("session_end", { reason, linesChanged: linesChanged(problem.files, filesRef.current) });
-      await flush();
-      await fetch(`/api/ai-round/sessions/${session.id}/finish`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ files: filesRef.current }),
-      });
-      router.refresh();
+      setFinishReason(reason);
+      setFinishError("");
+      if (!endLogged.current) {
+        endLogged.current = true;
+        log("session_end", { reason, linesChanged: linesChanged(problem.files, filesRef.current) });
+      }
+      try {
+        await flush();
+        const res = await fetch(`/api/ai-round/sessions/${session.id}/finish`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ files: filesRef.current }),
+        });
+        if (!res.ok && res.status !== 409) throw new Error(String(res.status));
+        router.refresh();
+      } catch {
+        // Nothing is lost: the session is saved. Let the student retry.
+        finishingRef.current = false;
+        setFinishError("Couldn't reach the server to finish. Your work is saved. Check your connection and try again.");
+      }
     },
     [flush, log, problem.files, router, session.id]
   );
@@ -405,6 +420,32 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
 
   return (
     <div className="h-screen flex flex-col bg-gray-950">
+      {finishing && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-gray-950/85 backdrop-blur-sm" role="alertdialog" aria-live="assertive">
+          <div className="max-w-sm text-center space-y-3 px-6">
+            {finishError ? (
+              <>
+                <p className="font-semibold">Session not finished yet</p>
+                <p className="text-sm text-gray-400">{finishError}</p>
+                <button
+                  onClick={() => void finish(finishReason)}
+                  className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium"
+                >
+                  Try again
+                </button>
+              </>
+            ) : (
+              <>
+                <Loader2 size={28} className="animate-spin text-green-400 mx-auto" />
+                <p className="font-semibold">{finishReason === "timeout" ? "Time's up" : "Finishing your session"}</p>
+                <p className="text-sm text-gray-400">
+                  Saving your code and writing your review. This can take up to a minute.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {/* Top bar */}
       <header className="flex items-center gap-4 px-4 py-2 border-b border-gray-800 bg-gray-900">
         <Link href="/ai-round" className="text-gray-400 hover:text-white" title="Back (your session is saved)">

@@ -21,6 +21,8 @@ export type SessionRow = {
   status: string;
   created_at: string;
   metrics: Metrics | null;
+  /** For unfinished sessions: minutes left on the clock (0 = time's up). */
+  minutesLeft: number | null;
 };
 
 const PROVIDERS: { id: Provider; name: string; keyUrl: string; note: string }[] = [
@@ -83,7 +85,46 @@ export function AiRoundHome({
   const selected = FORMATS.find((f) => f.id === formatId)!;
   const needsKey = selected.aiAllowed && !settings;
 
-  useEffect(() => () => runnerRef.current?.dispose(), []);
+  // Leaving the page stops everything cleanly: the request and the Python runner.
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      runnerRef.current?.dispose();
+    },
+    []
+  );
+
+  // While a problem is being built, ask before leaving: leaving stops the build.
+  const generating = gen !== null && gen.stage !== "opening";
+  useEffect(() => {
+    if (!generating) return;
+    const message = "Your problem is still being built. If you leave now it stops and nothing is saved. Leave anyway?";
+    let leaving = false; // already confirmed via a link: don't ask twice
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (leaving) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    const onClick = (e: MouseEvent) => {
+      const link = (e.target as HTMLElement | null)?.closest?.("a");
+      if (!link || link.target === "_blank" || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      const href = link.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("http")) return;
+      if (!window.confirm(message)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      leaving = true;
+      abortRef.current?.abort();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [generating]);
 
   useEffect(() => {
     if (!initialSettings) return;
@@ -499,7 +540,15 @@ export function AiRoundHome({
                       </p>
                     </div>
                     {s.status === "active" ? (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-green-900/60 text-green-300">In progress</span>
+                      s.minutesLeft ? (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-green-900/60 text-green-300 tabular">
+                          In progress, {s.minutesLeft} min left
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-500/10 text-amber-300">
+                          Time&apos;s up, open it for your review
+                        </span>
+                      )
                     ) : m ? (
                       <div className="w-36 text-right">
                         <p className="text-xs text-gray-400 tabular">
