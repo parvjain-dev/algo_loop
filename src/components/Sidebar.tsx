@@ -56,19 +56,23 @@ export function Sidebar() {
         Algo Loop
       </Link>
       <nav className="flex-1 space-y-1">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-              pathname === href ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-            )}
-          >
-            <Icon size={18} />
-            {label}
-          </Link>
-        ))}
+        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href || pathname.startsWith(href + "/");
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                active ? "bg-gray-800 text-white font-medium" : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+              )}
+            >
+              <Icon size={18} className={active ? "text-green-400" : undefined} />
+              {label}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Profile Section */}

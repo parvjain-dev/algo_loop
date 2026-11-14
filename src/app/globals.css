@@ -1,62 +1,137 @@
 @import "tailwindcss";
 
 /*
-  Theme: "Calm Indigo"
-  The whole app uses Tailwind's gray scale (gray-950 page, gray-900 cards,
-  gray-800 inputs/borders, gray-400/500 muted text), so re-defining the scale
-  here re-themes every page at once. Surfaces are lighter and bluer than the
-  old near-black, and text contrast is higher so everything stays readable.
+  Theme: "Graphite"
+  Every page uses Tailwind's gray scale for surfaces and text, and green for
+  the brand / primary actions. Redefining those two scales here re-themes the
+  whole app at once.
+
+  - Gray is a neutral graphite with clear steps between page, card, input
+    and border, so surfaces separate instead of blending.
+  - Green is the brand accent: a deep teal, the midpoint of the green-to-blue
+    logo gradient. Buttons use green-600 (white text passes WCAG AA).
+  - Red, amber and emerald keep Tailwind's defaults and only carry meaning:
+    wrong, warning, done.
 */
 @theme {
-  --color-gray-50: #f5f7ff;
-  --color-gray-100: #e9edfb; /* body text */
-  --color-gray-200: #d3daf0;
-  --color-gray-300: #b8c2e2;
-  --color-gray-400: #a6b1d6; /* secondary text */
-  --color-gray-500: #8b98c3; /* muted text */
-  --color-gray-600: #5f6d99;
-  --color-gray-700: #3f4c78; /* borders, hover surfaces */
-  --color-gray-800: #2c3860; /* inputs, empty cells */
-  --color-gray-900: #1f2849; /* cards, sidebar */
-  --color-gray-950: #151b33; /* page */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-gray-50: #f6f7f9;
+  --color-gray-100: #e8eaee; /* body text */
+  --color-gray-200: #d5d9df;
+  --color-gray-300: #bcc2cb;
+  --color-gray-400: #a0a7b2; /* secondary text */
+  --color-gray-500: #7e8693; /* muted text */
+  --color-gray-600: #59616d;
+  --color-gray-700: #3a4049; /* strong borders, hover surfaces */
+  --color-gray-800: #272b32; /* inputs, quiet borders */
+  --color-gray-900: #1c1f24; /* cards, sidebar */
+  --color-gray-950: #131518; /* page */
+
+  --color-green-50: #ebfbf8;
+  --color-green-100: #cff5ee;
+  --color-green-200: #a0eadc;
+  --color-green-300: #67d8c5;
+  --color-green-400: #34c2ac; /* accent text, icons */
+  --color-green-500: #17a891;
+  --color-green-600: #0e7f6e; /* primary buttons */
+  --color-green-700: #0b6a5c; /* primary hover */
+  --color-green-800: #0d5248;
+  --color-green-900: #0e423b; /* tinted backgrounds */
+  --color-green-950: #062723;
 }
 
 :root {
   color-scheme: dark;
-  --background: #151b33;
-  --foreground: #e9edfb;
+  --background: #131518;
+  --foreground: #e8eaee;
 }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
-  /* soft indigo glow top-right, teal glow bottom-left, on the page colour */
-  background:
-    radial-gradient(1100px 560px at 88% -8%, rgba(99, 102, 241, 0.2), transparent 60%),
-    radial-gradient(900px 520px at -8% 108%, rgba(45, 212, 191, 0.13), transparent 55%),
-    var(--background);
-  background-attachment: fixed;
+  font-family: var(--font-sans);
+  background: var(--background);
   color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "tnum" 0;
 }
 
-/* a little depth so cards lift off the background */
+/* Code shows exactly what's typed: no ligatures turning <= into ≤ or -> into →. */
+code,
+pre,
+kbd,
+.font-mono {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+
+/* Numbers that change or line up (timers, scores, counts) use tabular figures. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cards lift slightly off the page: a hairline highlight on top, a soft drop below. */
 .bg-gray-900 {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 10px 28px -16px rgba(5, 8, 25, 0.7);
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 ::selection {
-  background: rgba(99, 102, 241, 0.45);
+  background: rgba(52, 194, 172, 0.35);
   color: #fff;
 }
 
 :focus-visible {
-  outline: 2px solid rgba(52, 211, 153, 0.7);
+  outline: 2px solid #34c2ac;
   outline-offset: 2px;
 }
 
-/* subtler scrollbars that match the palette */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f4c78 transparent;
+  scrollbar-color: #3a4049 transparent;
+}
+
+/* AI Round: the "AI is writing" editor shimmer and caret. */
+@keyframes ar-shimmer {
+  0% {
+    background-position: -320px 0;
+  }
+  100% {
+    background-position: 320px 0;
+  }
+}
+.ar-shimmer {
+  background: linear-gradient(90deg, #272b32 0%, #3a4049 40%, #272b32 80%);
+  background-size: 640px 100%;
+  animation: ar-shimmer 1.6s linear infinite;
+}
+@keyframes ar-caret {
+  50% {
+    opacity: 0;
+  }
+}
+.ar-caret {
+  animation: ar-caret 1s steps(1) infinite;
+}
+@keyframes ar-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ar-in {
+  animation: ar-in 240ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ar-shimmer,
+  .ar-caret,
+  .ar-in {
+    animation: none;
+  }
 }

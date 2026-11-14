@@ -97,7 +97,7 @@ export function ReviewView({
 
       {metrics && (
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Stat label="Phases complete" value={`${metrics.phasesCompleted}/${metrics.phasesTotal}`} />
+          <Stat label="Parts complete" value={`${metrics.phasesCompleted}/${metrics.phasesTotal}`} />
           <Stat label="Minutes" value={String(Math.round(metrics.minutes))} />
           <Stat label="Test runs" value={String(metrics.testRuns)} />
           {format.aiAllowed && <Stat label="AI prompts" value={String(metrics.aiPrompts)} />}
@@ -181,7 +181,7 @@ export function ReviewView({
               <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 flex gap-2">
                 <CheckCircle2 size={16} className="text-emerald-300 shrink-0 mt-0.5" />
                 <p className="text-sm text-emerald-100">
-                  {`Nothing to change. You finished every phase${format.aiAllowed ? " and checked the AI's work before moving on" : ""}. That's how strong candidates work: keep doing exactly this.`}
+                  {`Nothing to change. You finished every part${format.aiAllowed ? " and checked the AI's work before moving on" : ""}. That's how strong candidates work: keep doing exactly this.`}
                 </p>
               </div>
             ) : full.improvements.length === 0 ? (

@@ -265,8 +265,8 @@ export function groundReview(raw: unknown, args: { events: SessionEvent[]; metri
 export function headline(m: Metrics, format: Format): string {
   const done =
     m.phasesCompleted >= m.phasesTotal
-      ? `All ${m.phasesTotal} phases done in ${Math.round(m.minutes)} min`
-      : `${m.phasesCompleted} of ${m.phasesTotal} phases done in ${Math.round(m.minutes)} min`;
+      ? `All ${m.phasesTotal} parts done in ${Math.round(m.minutes)} min`
+      : `${m.phasesCompleted} of ${m.phasesTotal} parts done in ${Math.round(m.minutes)} min`;
   if (!format.aiAllowed) return `${done}, without AI.`;
   if (m.aiCodePastes === 0) return `${done}. You wrote the code yourself and used the AI ${m.aiPrompts === 0 ? "not at all" : "for help, not for code"}.`;
   if (m.aiPastesTested === m.aiCodePastes) return `${done}, and you tested every piece of AI code before moving on.`;

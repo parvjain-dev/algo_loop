@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Editor, { type OnMount } from "@monaco-editor/react";
+import Editor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
 import {
   ArrowLeft,
   Bot,
@@ -63,7 +63,40 @@ function linesChanged(a: Files, b: Files): number {
   return n;
 }
 
+/** Editor colours matched to the app's graphite + teal theme. */
+const defineEditorTheme: BeforeMount = (monaco) => {
+  monaco.editor.defineTheme("algoloop", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: "7e8693", fontStyle: "italic" },
+      { token: "keyword", foreground: "67d8c5" },
+      { token: "string", foreground: "e8c27a" },
+      { token: "number", foreground: "f0a07c" },
+      { token: "type", foreground: "8fb8ff" },
+      { token: "delimiter", foreground: "a0a7b2" },
+    ],
+    colors: {
+      "editor.background": "#16181c",
+      "editor.foreground": "#e8eaee",
+      "editor.lineHighlightBackground": "#1f2329",
+      "editor.lineHighlightBorder": "#00000000",
+      "editorLineNumber.foreground": "#4a515b",
+      "editorLineNumber.activeForeground": "#a0a7b2",
+      "editor.selectionBackground": "#0e7f6e66",
+      "editor.inactiveSelectionBackground": "#0e7f6e33",
+      "editorCursor.foreground": "#34c2ac",
+      "editorIndentGuide.background1": "#272b32",
+      "editorIndentGuide.activeBackground1": "#3a4049",
+      "editorWidget.background": "#1c1f24",
+      "editorWidget.border": "#3a4049",
+      "scrollbarSlider.background": "#3a404966",
+    },
+  });
+};
+
 const isReadOnly = (path: string) => path.startsWith("tests/") || path === "conftest.py";
+const partTitle = (n: number, title: string) => (/^part\s*\d/i.test(title) ? title : `Part ${n}: ${title}`);
 const shortTestName = (id: string) => id.split("::").slice(1).join("::") || id;
 
 export function Workspace({ session, events, hasKey }: { session: SessionData; events: SessionEvent[]; hasKey: boolean }) {
@@ -112,7 +145,8 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
   const [gateText, setGateText] = useState("");
   const [closingIndex, setClosingIndex] = useState(restored.closingDone);
   const [closingText, setClosingText] = useState("");
-  const [now, setNow] = useState(() => Date.now());
+  // null until mounted: the server and browser clocks differ, so the timer only renders in the browser.
+  const [now, setNow] = useState<number | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [showBrief, setShowBrief] = useState(true);
   const [openTests, setOpenTests] = useState<Set<string>>(new Set());
@@ -199,7 +233,7 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
   }, []);
 
   // ---------- timer ----------
-  const remaining = Math.max(0, deadline - now);
+  const remaining = now === null ? session.duration_seconds * 1000 : Math.max(0, deadline - now);
 
   const allDone = completed.size >= totalPhases;
   const closingQuestions = format.closingQuestions;
@@ -229,12 +263,17 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
     finishRef.current = finish;
   }, [finish]);
   useEffect(() => {
-    const t = setInterval(() => {
+    const tick = () => {
       const n = Date.now();
       setNow(n);
       if (n >= deadline) void finishRef.current("timeout");
-    }, 1000);
-    return () => clearInterval(t);
+    };
+    const first = setTimeout(tick, 0);
+    const t = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
   }, [deadline]);
 
   // ---------- tests ----------
@@ -387,22 +426,22 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
                 )}
               >
                 {completed.has(n) ? "✓ " : ""}
-                {n}. {p.title}
+                {partTitle(n, p.title)}
               </li>
             );
           })}
         </ol>
         <div className="ml-auto flex items-center gap-3">
-          <span className={cn("inline-flex items-center gap-1 font-mono text-sm", remaining < 5 * 60000 ? "text-red-400" : "text-gray-200")}>
-            <Timer size={15} /> {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+          <span className={cn("inline-flex items-center gap-1 font-mono text-sm tabular", now !== null && remaining < 5 * 60000 ? "text-red-400" : "text-gray-200")}>
+            <Timer size={15} /> {now === null ? "--:--" : `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`}
           </span>
           <button
             onClick={runTests}
             disabled={running || runnerState !== "ready" || finishing}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-sm font-medium disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium disabled:opacity-50"
           >
             {running || runnerState === "loading" ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-            {runnerState === "loading" ? "Loading Python…" : `Run tests (phase 1–${phase})`}
+            {runnerState === "loading" ? "Loading Python…" : "Run tests"}
           </button>
           <button
             onClick={() => {
@@ -428,16 +467,16 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
         <aside className="border-r border-gray-800 flex flex-col min-h-0">
           <button
             onClick={() => setShowBrief((s) => !s)}
-            className="flex items-center gap-1 px-3 py-2 text-xs uppercase tracking-wide text-gray-400 hover:text-white"
+            className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-100 hover:text-white text-left"
           >
-            {showBrief ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Phase {phase}: {brief.title}
+            {showBrief ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />} {partTitle(phase, brief.title)}
           </button>
           {showBrief && (
             <div className="px-3 pb-3 overflow-y-auto max-h-[55%] border-b border-gray-800">
               <Markdown>{brief.brief}</Markdown>
             </div>
           )}
-          <p className="px-3 pt-3 pb-1 text-xs uppercase tracking-wide text-gray-400">Files</p>
+          <p className="px-3 pt-3 pb-1 text-xs font-medium text-gray-500">Files</p>
           <nav className="flex-1 overflow-y-auto px-1 pb-3">
             {paths.map((p) => (
               <button
@@ -463,7 +502,8 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
               path={active}
               value={files[active] ?? ""}
               language={active.endsWith(".py") ? "python" : "markdown"}
-              theme="vs-dark"
+              theme="algoloop"
+              beforeMount={defineEditorTheme}
               onMount={onMount}
               onChange={(v) => {
                 if (isReadOnly(active)) return;
@@ -474,6 +514,11 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
                 readOnly: isReadOnly(active) || finishing,
                 minimap: { enabled: false },
                 fontSize: 13,
+                fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
+                fontLigatures: false,
+                lineHeight: 20,
+                padding: { top: 12 },
+                renderLineHighlight: "all",
                 scrollBeyondLastLine: false,
                 tabSize: 4,
                 automaticLayout: true,
@@ -593,7 +638,7 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
 
               {chatLocked ? (
                 <div className="border-t border-gray-800 p-3 space-y-2 bg-gray-900">
-                  <p className="text-xs uppercase tracking-wide text-amber-300 inline-flex items-center gap-1">
+                  <p className="text-xs font-medium text-amber-300 inline-flex items-center gap-1">
                     <Lock size={12} /> Think first
                   </p>
                   <p className="text-sm">

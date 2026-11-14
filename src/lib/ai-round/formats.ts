@@ -54,6 +54,8 @@ export type Format = {
   id: string;
   name: string;
   oneLiner: string;
+  /** What the student does, in order (shown on the start screen). */
+  steps: string[];
   minutes: number;
   aiAllowed: boolean;
   /** Student must write questions + assumptions before the AI unlocks. */
@@ -75,6 +77,7 @@ export const FORMATS: Format[] = [
     id: "bug-build-scale",
     name: "Bug → Build → Scale",
     oneLiner: "A small multi-file codebase. Fix a bug, build a feature, then make it fast enough for big inputs.",
+    steps: ["Fix the bugs", "Build a feature", "Make it fast"],
     minutes: 60,
     aiAllowed: true,
     clarifyStep: false,
@@ -90,6 +93,7 @@ export const FORMATS: Format[] = [
     id: "read-repair",
     name: "Read & Repair",
     oneLiner: "An unfamiliar codebase you didn't write. Understand it, debug it, then optimise it.",
+    steps: ["Trace and fix bugs", "Handle edge cases", "Speed it up"],
     minutes: 60,
     aiAllowed: true,
     clarifyStep: false,
@@ -105,6 +109,7 @@ export const FORMATS: Format[] = [
     id: "open-build",
     name: "Open Build",
     oneLiner: "An ambiguous product brief. Clarify first, design, build, then explain your choices.",
+    steps: ["Clarify the brief", "Build the core", "Handle edge cases", "Explain your choices"],
     minutes: 60,
     aiAllowed: true,
     clarifyStep: true,
@@ -124,6 +129,7 @@ export const FORMATS: Format[] = [
     id: "solo",
     name: "Solo (no AI)",
     oneLiner: "The same kind of codebase with the AI switched off. Many loops still run this way.",
+    steps: ["Fix the bugs", "Build a feature", "Make it fast"],
     minutes: 60,
     aiAllowed: false,
     clarifyStep: false,

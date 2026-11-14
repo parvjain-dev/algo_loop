@@ -34,20 +34,33 @@ export function testsThrough(problem: { tests: Files; phases: { testPath: string
  *  - the reference solution PASSES every phase's tests.
  * Returns null when valid, or a reason the generator can act on.
  */
-export async function validateByRunning(problem: GeneratedProblem, run: RunFn): Promise<string | null> {
+export type CheckProgress =
+  | { kind: "phase-start"; index: number }
+  | { kind: "phase-done"; index: number; failing: number; total: number }
+  | { kind: "solution-start" }
+  | { kind: "solution-done"; passed: number; total: number };
+
+export async function validateByRunning(
+  problem: GeneratedProblem,
+  run: RunFn,
+  onProgress?: (p: CheckProgress) => void
+): Promise<string | null> {
   const all = { ...problem.files, ...problem.tests };
   for (const [i, phase] of problem.phases.entries()) {
+    onProgress?.({ kind: "phase-start", index: i });
     const r = await run(all, [phase.testPath]);
-    if (r.timedOut) return `Phase ${i + 1}: the tests timed out on the starter code (an infinite loop or far too slow).`;
-    if (r.error) return `Phase ${i + 1}: could not run tests (${r.error}).`;
+    if (r.timedOut) return `Part ${i + 1}: the tests timed out on the starter code (an infinite loop or far too slow).`;
+    if (r.error) return `Part ${i + 1}: could not run tests (${r.error}).`;
     const callFailures = r.tests.filter((t) => t.outcome === "failed" && t.id.includes("::"));
     if (r.ok || callFailures.length === 0) {
       const collection = r.tests.find((t) => t.outcome === "error");
       return collection
-        ? `Phase ${i + 1}: the starter code errors before tests run: ${collection.message?.slice(-500)}`
-        : `Phase ${i + 1}: every test already passes on the starter code, so there is nothing to do.`;
+        ? `Part ${i + 1}: the starter code errors before tests run: ${collection.message?.slice(-500)}`
+        : `Part ${i + 1}: every test already passes on the starter code, so there is nothing to do.`;
     }
+    onProgress?.({ kind: "phase-done", index: i, failing: callFailures.length, total: r.total });
   }
+  onProgress?.({ kind: "solution-start" });
   const solved = { ...all, ...problem.solution };
   const r = await run(solved, problem.phases.map((p) => p.testPath));
   if (r.timedOut) return "The reference solution timed out.";
@@ -60,5 +73,6 @@ export async function validateByRunning(problem: GeneratedProblem, run: RunFn): 
       .join("\n");
     return `The reference solution fails ${r.failed} of ${r.total} tests:\n${failing}`;
   }
+  onProgress?.({ kind: "solution-done", passed: r.passed, total: r.total });
   return null;
 }
