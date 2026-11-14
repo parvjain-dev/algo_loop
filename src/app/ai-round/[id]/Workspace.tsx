@@ -388,7 +388,11 @@ export function Workspace({ session, events, hasKey }: { session: SessionData; e
   };
 
   const chatEnd = useRef<HTMLDivElement>(null);
-  useEffect(() => chatEnd.current?.scrollIntoView({ block: "end" }), [chat, thinking]);
+  // Block body on purpose: newer browsers return a Promise from scrollIntoView, and an
+  // effect must return nothing (or a cleanup function), never a Promise.
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ block: "end" });
+  }, [chat, thinking]);
 
   // ---------- render ----------
   const paths = Object.keys(files).sort((a, b) => {
