@@ -22,8 +22,14 @@ import {
   Sparkles,
   Search,
   Lock,
+  Bot,
+  ShieldCheck,
+  ArrowRight,
 } from "lucide-react";
 import { CONTEST_MIN_PROBLEMS, CONTEST_MINUTES, CONTEST_POINTS, DAILY_CAP } from "@/lib/constants";
+import { FORMATS } from "@/lib/ai-round/formats";
+import { SourceBadge } from "@/app/ai-round/AiRoundHome";
+import { ScheduleLab } from "./ScheduleLab";
 
 const TOC = [
   { id: "quick-start", label: "Quick start" },
@@ -32,6 +38,7 @@ const TOC = [
   { id: "today", label: "Today's queue" },
   { id: "streaks", label: "Streaks & calendar" },
   { id: "contest", label: "Weekly contest" },
+  { id: "ai-round", label: "AI Round" },
   { id: "more", label: "Everything else" },
   { id: "tips", label: "Pro tips" },
   { id: "faq", label: "FAQ" },
@@ -75,6 +82,22 @@ const FAQ = [
     a: "The clock keeps running, because it's based on when you pressed Start. Come back to the Contest page and your progress is still there.",
   },
   {
+    q: "Is my AI key safe in AI Round?",
+    a: "It's checked with your provider, encrypted on the server, and never sent back to your browser. Only the last 4 characters are shown. You can remove it any time with Change key.",
+  },
+  {
+    q: "Does AI Round cost anything?",
+    a: "Algo Loop doesn't charge for it. The AI runs on your own key, so any usage is billed by your provider, and Gemini's free tier is enough to practise.",
+  },
+  {
+    q: "Generating a problem failed, or it says the AI is busy.",
+    a: "Busy means your provider is overloaded, which is on their side. The app already retries and tries another model on your key. Wait a minute, pick another model, or practise with Log Analyzer, which opens instantly.",
+  },
+  {
+    q: "Why can't the AI in AI Round edit my code?",
+    a: "Because that's how the reported Meta format works: the AI reads your files and answers in chat, and you make every change. Pasting its code is fine, just run the tests afterwards.",
+  },
+  {
     q: "Does Algo Loop send emails?",
     a: "No. Everything is shown in-app, in Notifications.",
   },
@@ -94,7 +117,14 @@ export default function GuidePage() {
         {/* ---------- Hero ---------- */}
         <header className="space-y-8">
           <div className="space-y-3">
-            <p className="text-xs font-semibold tracking-widest text-emerald-400 uppercase">How to use</p>
+            <a
+              href="#ai-round"
+              className="inline-flex items-center gap-2 rounded-full border border-gray-800 bg-gray-900 pl-1.5 pr-3 py-1 text-sm text-gray-300 hover:border-gray-600"
+            >
+              <span className="rounded-full bg-green-900 text-green-300 text-xs font-semibold px-2 py-0.5">New</span>
+              Practise AI-assisted interviews in AI Round
+              <ArrowRight size={14} className="text-gray-500" />
+            </a>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent w-fit">
               Never forget a solved problem again
             </h1>
@@ -137,7 +167,7 @@ export default function GuidePage() {
 
         {/* ---------- Quick start ---------- */}
         <Section id="quick-start" icon={Rocket} title="Quick start" subtitle="Up and running in about a minute.">
-          <ol className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <ol className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {[
               {
                 n: 1,
@@ -169,9 +199,19 @@ export default function GuidePage() {
                   </>
                 ),
               },
+              {
+                n: 4,
+                t: "Practise an AI round",
+                d: (
+                  <>
+                    Open <b className="text-white">AI Round</b>, connect a free Gemini key, and try the ready-made Log
+                    Analyzer problem with an AI beside you.
+                  </>
+                ),
+              },
             ].map((s) => (
               <li key={s.n} className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-2">
-                <span className="w-7 h-7 rounded-full bg-emerald-500/15 text-emerald-400 text-sm font-bold flex items-center justify-center">
+                <span className="w-7 h-7 rounded-full bg-green-900 text-green-300 text-sm font-bold flex items-center justify-center tabular">
                   {s.n}
                 </span>
                 <p className="font-semibold">{s.t}</p>
@@ -232,29 +272,9 @@ export default function GuidePage() {
           id="schedule"
           icon={Repeat}
           title="Revision schedule"
-          subtitle="The harder it was, the sooner it comes back. Be honest about how it went. It's the one input that drives everything."
+          subtitle="The harder it was, the sooner it comes back. Play it out below: solve a problem, say how it went, and see when it returns."
         >
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-            {[
-              { emoji: "⚡", label: "Solved in under 25 min", days: 14, bar: "bg-emerald-500", text: "text-emerald-400" },
-              { emoji: "⏱️", label: "Solved in over 25 min", days: 7, bar: "bg-amber-400", text: "text-amber-400" },
-              { emoji: "💡", label: "Solved with hints", days: 3, bar: "bg-orange-500", text: "text-orange-400" },
-              { emoji: "📖", label: "Solved with the solution", days: 1, bar: "bg-rose-500", text: "text-rose-400" },
-            ].map((r) => (
-              <div key={r.label} className="grid grid-cols-[minmax(0,13rem)_1fr_4.5rem] items-center gap-4">
-                <p className="text-sm">
-                  <span className="mr-2">{r.emoji}</span>
-                  {r.label}
-                </p>
-                <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${r.bar}`} style={{ width: `${(r.days / 14) * 100}%` }} />
-                </div>
-                <p className={`text-sm font-semibold text-right ${r.text}`}>
-                  {r.days} {r.days === 1 ? "day" : "days"}
-                </p>
-              </div>
-            ))}
-          </div>
+          <ScheduleLab />
         </Section>
 
         {/* ---------- Today ---------- */}
@@ -290,8 +310,8 @@ export default function GuidePage() {
                 <p className="text-gray-400">Not today? Push it to the next day with room. It doesn&apos;t count toward your streak.</p>
               </div>
             </div>
-            <div className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-4 text-sm space-y-1">
-              <p className="font-semibold text-violet-300">Never more than {DAILY_CAP} a day</p>
+            <div className="rounded-lg border border-gray-700 bg-gray-950/60 p-4 text-sm space-y-1">
+              <p className="font-semibold text-white">Never more than {DAILY_CAP} a day</p>
               <p className="text-gray-400 leading-relaxed">
                 If more than {DAILY_CAP} problems are due (say you skipped a few days), Today shows the {DAILY_CAP} that
                 matter most: <b className="text-white">overdue first</b>, then the ones that were{" "}
@@ -438,6 +458,97 @@ export default function GuidePage() {
           </div>
         </Section>
 
+        {/* ---------- AI Round ---------- */}
+        <Section
+          id="ai-round"
+          icon={Bot}
+          title="AI Round"
+          subtitle="Practise the coding rounds where an AI assistant sits beside you: a real multi-file codebase, tests that unlock part by part, and an honest review."
+        >
+          <ol className="grid grid-cols-1 md:grid-cols-5 gap-2">
+            {[
+              ["Connect your AI", "Paste a Gemini, OpenAI or Claude key. Gemini's free tier works."],
+              ["Pick a format", "Four formats, each tagged with the company pattern it copies."],
+              ["Watch it build", "Your AI writes a codebase, then the app checks the tests really work."],
+              ["Solve it", "60 minutes. Pass the tests to unlock each part, with the AI in a side chat."],
+              ["Read your review", "What went well, how you used the AI, and tips only where they're earned."],
+            ].map(([t, d], i) => (
+              <li key={t} className="relative bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-1.5">
+                <span className="w-6 h-6 rounded-full bg-green-900 text-green-300 text-xs font-bold grid place-items-center tabular">
+                  {i + 1}
+                </span>
+                <p className="font-semibold text-sm">{t}</p>
+                <p className="text-xs text-gray-400 leading-relaxed">{d}</p>
+              </li>
+            ))}
+          </ol>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {FORMATS.map((f) => (
+              <div key={f.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-1.5">
+                <p className="font-semibold text-sm">{f.name}</p>
+                <p className="text-sm text-gray-400 leading-relaxed">{f.oneLiner}</p>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 pt-0.5">
+                  {f.tags.map((t) => (
+                    <span key={t.label} className="inline-flex items-center gap-1.5">
+                      {t.label} <SourceBadge source={t.source} />
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+              <p className="font-semibold">Inside a session</p>
+              <ul className="space-y-2 text-sm text-gray-300">
+                {[
+                  "The timer runs for 60 minutes and the session ends on its own, like the real round.",
+                  "Press Run tests. When every test is green, the next part unlocks.",
+                  "Answer the short think-first question to unlock the AI chat for each part.",
+                  "The AI reads your files but can't edit them. You make every change.",
+                  "Your work saves as you go, so closing the tab loses nothing.",
+                ].map((t) => (
+                  <li key={t} className="flex gap-2">
+                    <CheckCircle2 size={16} className="text-green-400 shrink-0 mt-0.5" /> {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+              <p className="font-semibold flex items-center gap-2">
+                <ShieldCheck size={16} className="text-green-400" /> Why the review can be trusted
+              </p>
+              <ul className="space-y-2 text-sm text-gray-300">
+                {[
+                  "Numbers like test runs and AI prompts are counted by the app, not guessed by the AI.",
+                  "Every point links to the real moments from your session it's based on.",
+                  "Anything the AI can't back with evidence is removed before you see it.",
+                  "Finish every part and test the AI's code before moving on, and you only hear what went well.",
+                ].map((t) => (
+                  <li key={t} className="flex gap-2">
+                    <CheckCircle2 size={16} className="text-green-400 shrink-0 mt-0.5" /> {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm text-gray-300 max-w-xl leading-relaxed">
+              <b className="text-white">The habit interviewers look for:</b> say your plan first, ask the AI small and specific
+              questions, and run the tests after every paste.
+            </p>
+            <Link
+              href="/ai-round"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium"
+            >
+              Open AI Round <ArrowRight size={14} />
+            </Link>
+          </div>
+        </Section>
+
         {/* ---------- More ---------- */}
         <Section id="more" icon={Sparkles} title="Everything else" subtitle="The rest of the sidebar, in a line each.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -545,12 +656,12 @@ export default function GuidePage() {
       {/* ---------- Sticky table of contents ---------- */}
       <nav aria-label="On this page" className="hidden lg:block w-48 shrink-0">
         <div className="sticky top-8 space-y-1">
-          <p className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-3">On this page</p>
+          <p className="text-xs font-medium text-gray-500 mb-3">On this page</p>
           {TOC.map((t) => (
             <a
               key={t.id}
               href={`#${t.id}`}
-              className="block text-sm text-gray-400 hover:text-white border-l border-gray-800 hover:border-emerald-400 pl-3 py-1 transition-colors"
+              className="block text-sm text-gray-400 hover:text-white border-l border-gray-800 hover:border-green-400 pl-3 py-1 transition-colors"
             >
               {t.label}
             </a>
@@ -578,8 +689,8 @@ function Section({
     <section id={id} className="scroll-mt-8 space-y-5">
       <div className="space-y-1.5">
         <h2 className="text-2xl font-bold flex items-center gap-3">
-          <span className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-            <Icon size={20} className="text-emerald-400" />
+          <span className="w-9 h-9 rounded-lg bg-green-900/70 flex items-center justify-center">
+            <Icon size={20} className="text-green-300" />
           </span>
           {title}
         </h2>
