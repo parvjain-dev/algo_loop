@@ -42,8 +42,11 @@ export async function listModels(provider: Provider, key: string): Promise<strin
     const names = (body.models || [])
       .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
       .map((m) => m.name.replace(/^models\//, ""))
-      .filter((n) => /^gemini-/.test(n) && !/(embedding|image|tts|audio|live|vision)/.test(n));
-    return rank(names, [/^gemini-2\.5-flash$/, /^gemini-2\.5-pro$/, /flash/, /pro/]);
+      .filter((n) => /^gemini-/.test(n) && !/(embedding|image|tts|audio|live|vision|robotics|computer-use)/.test(n));
+    return rankByVersion(names, {
+      alias: /^gemini-flash-latest$/,
+      family: (n) => (/-flash-lite/.test(n) ? 2 : /-flash/.test(n) ? 0 : /-pro/.test(n) ? 1 : 3),
+    });
   }
   if (provider === "openai") {
     const body = (await call("https://api.openai.com/v1/models", {
@@ -52,13 +55,35 @@ export async function listModels(provider: Provider, key: string): Promise<strin
     const names = (body.data || [])
       .map((m) => m.id)
       .filter((n) => /^(gpt-|o\d)/.test(n) && !/(audio|realtime|transcribe|tts|image|search|instruct)/.test(n));
-    return rank(names, [/^gpt-4\.1-mini$/, /^gpt-4\.1$/, /^gpt-4o-mini$/, /^gpt-4o$/, /^gpt-5/]);
+    return rankByVersion(names, {
+      family: (n) => (/^o\d/.test(n) ? 4 : /-mini/.test(n) ? 0 : /-nano/.test(n) ? 2 : /-(pro|chat|codex)/.test(n) ? 3 : 1),
+    });
   }
   const body = (await call("https://api.anthropic.com/v1/models?limit=100", {
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
   })) as { data?: { id: string }[] };
   const names = (body.data || []).map((m) => m.id);
   return rank(names, [/sonnet/, /haiku/, /opus/]);
+}
+
+/**
+ * Newest stable model first, so the default never points at a retired model.
+ * Order: an always-latest alias if offered, then stable before preview/
+ * experimental/dated snapshots, then the highest version number, then family.
+ */
+export function rankByVersion(
+  names: string[],
+  opts: { alias?: RegExp; family: (name: string) => number }
+): string[] {
+  const version = (n: string) => Number(n.match(/^(?:gemini|gpt)-(\d+(?:\.\d+)?)/)?.[1] ?? -1);
+  const unstable = (n: string) => (/(preview|exp|experimental|-\d{4}-\d{2}-\d{2}|-\d{2}-\d{2}$|latest$)/.test(n) ? 1 : 0);
+  const key = (n: string): number[] => [opts.alias?.test(n) ? 0 : 1, unstable(n), -version(n), opts.family(n), n.length];
+  return [...new Set(names)].sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
+    return a.localeCompare(b);
+  });
 }
 
 function rank(names: string[], prefs: RegExp[]): string[] {

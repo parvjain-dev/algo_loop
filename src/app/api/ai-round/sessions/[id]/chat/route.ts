@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getFormat } from "@/lib/ai-round/formats";
-import { complete, type ChatMessage } from "@/lib/ai-round/server/providers";
-import { jsonError, loadUserAi, providerErrorResponse, requireUser } from "@/lib/ai-round/server/context";
+import { type ChatMessage } from "@/lib/ai-round/server/providers";
+import { completeForUser, jsonError, loadUserAi, providerErrorResponse, requireUser } from "@/lib/ai-round/server/context";
 import type { Files, ProblemBundle } from "@/lib/ai-round/types";
 
 export const maxDuration = 120;
@@ -48,8 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const reply = await complete({
-      ...ai,
+    const reply = await completeForUser(supabase, user.id, ai, {
       system: `${SYSTEM}\n\nCurrent task (${phase?.title}):\n${phase?.brief}\n\nProject files:${context}`,
       messages: history,
       maxTokens: 3000,

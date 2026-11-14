@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getFormat } from "@/lib/ai-round/formats";
 import { computeMetrics } from "@/lib/ai-round/metrics";
 import { REVIEW_SYSTEM, buildReviewPrompt, groundReview, headline } from "@/lib/ai-round/review";
-import { complete, parseJsonObject } from "@/lib/ai-round/server/providers";
-import { jsonError, loadUserAi, requireUser } from "@/lib/ai-round/server/context";
+import { parseJsonObject } from "@/lib/ai-round/server/providers";
+import { completeForUser, jsonError, loadUserAi, requireUser } from "@/lib/ai-round/server/context";
 import type { Files, ProblemBundle, SessionEvent } from "@/lib/ai-round/types";
 
 export const maxDuration = 300;
@@ -54,8 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     reviewError = "Connect an AI key to get a written review. Your numbers below are complete.";
   } else {
     try {
-      const text = await complete({
-        ...ai,
+      const text = await completeForUser(supabase, user.id, ai, {
         system: REVIEW_SYSTEM,
         messages: [
           {

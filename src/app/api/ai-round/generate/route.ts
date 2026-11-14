@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getFormat } from "@/lib/ai-round/formats";
 import { GENERATOR_SYSTEM, checkGeneratedShape, generatorPrompt } from "@/lib/ai-round/generate";
-import { complete, parseJsonObject } from "@/lib/ai-round/server/providers";
-import { jsonError, loadUserAi, providerErrorResponse, requireUser } from "@/lib/ai-round/server/context";
+import { parseJsonObject } from "@/lib/ai-round/server/providers";
+import { completeForUser, jsonError, loadUserAi, providerErrorResponse, requireUser } from "@/lib/ai-round/server/context";
 
 export const maxDuration = 300;
 
@@ -31,8 +31,7 @@ export async function POST(request: Request) {
   for (let attempt = 0; attempt < 2; attempt++) {
     let text: string;
     try {
-      text = await complete({
-        ...ai,
+      text = await completeForUser(supabase, user.id, ai, {
         system: GENERATOR_SYSTEM,
         messages: [
           {
