@@ -98,7 +98,8 @@ export function GenerationProgress({
         <div>
           <p className="font-semibold">Building your problem</p>
           <p className="text-xs text-gray-500 mt-0.5">
-            With <span className="text-gray-300">{model}</span>. This usually takes 1–3 minutes.
+            With <span className="text-gray-300">{model}</span>. Usually 1–3 minutes. You can keep using Algo Loop
+            meanwhile.
           </p>
         </div>
         <div className="flex items-center gap-3">

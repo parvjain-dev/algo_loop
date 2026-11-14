@@ -94,6 +94,14 @@ const FAQ = [
     a: "Busy means your provider is overloaded, which is on their side. The app already retries and tries another model on your key. Wait a minute, pick another model, or practise with Log Analyzer, which opens instantly.",
   },
   {
+    q: "Can I use the rest of Algo Loop while a problem is being built?",
+    a: "Yes. The build keeps running while you move between pages, with a small card in the corner showing progress. When it's ready the card says so, and the session's clock starts only when you open it. Closing or reloading the tab stops the build, and nothing half-built is ever saved.",
+  },
+  {
+    q: "It said the AI took too long. Was half a problem saved?",
+    a: "No. A problem is saved only after it passes the check, so a timeout leaves nothing behind. The app tries again once on its own. If it keeps happening, pick a faster model (a Flash or Mini one) in the model menu.",
+  },
+  {
     q: "Why can't the AI in AI Round edit my code?",
     a: "Because that's how the reported Meta format works: the AI reads your files and answers in chat, and you make every change. Pasting its code is fine, just run the tests afterwards.",
   },

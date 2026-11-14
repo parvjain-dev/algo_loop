@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format as formatDate } from "date-fns";
-import { CheckCircle2, ChevronRight, ExternalLink, Loader2, Play, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCircle2, ChevronRight, ExternalLink, Loader2, Play, ShieldCheck, Sparkles, X } from "lucide-react";
 import { FORMATS, HOW_COMPANIES_TEST, SOURCES, SOURCES_CHECKED, type Format } from "@/lib/ai-round/formats";
-import { PythonRunner } from "@/lib/ai-round/runner";
-import { validateByRunning, type CheckProgress } from "@/lib/ai-round/validate";
-import type { GeneratedProblem, Provider } from "@/lib/ai-round/types";
+import type { Provider } from "@/lib/ai-round/types";
 import type { Metrics } from "@/lib/ai-round/metrics";
 import { cn } from "@/lib/utils";
-import { GenerationProgress, type CheckRow, type GenState } from "./GenerationProgress";
+import { GenerationProgress } from "./GenerationProgress";
+import { useGeneration } from "./GenerationProvider";
 
 export type KeySettings = { provider: Provider; model: string; key_hint: string; verified_at: string };
 export type SessionRow = {
@@ -30,9 +29,6 @@ const PROVIDERS: { id: Provider; name: string; keyUrl: string; note: string }[] 
   { id: "openai", name: "OpenAI", keyUrl: "https://platform.openai.com/api-keys", note: "Pay as you go" },
   { id: "anthropic", name: "Claude", keyUrl: "https://console.anthropic.com/settings/keys", note: "Pay as you go" },
 ];
-
-/** One fresh problem plus up to three targeted fixes. */
-const MAX_ATTEMPTS = 4;
 
 export function SourceBadge({ source }: { source: string }) {
   const s = SOURCES[source];
@@ -54,8 +50,6 @@ export function SourceBadge({ source }: { source: string }) {
   );
 }
 
-const lineCount = (s: string) => s.split("\n").length;
-
 export function AiRoundHome({
   settings: initialSettings,
   sessions,
@@ -74,57 +68,21 @@ export function AiRoundHome({
   const [keyBusy, setKeyBusy] = useState(false);
   const [keyError, setKeyError] = useState("");
 
-  const [formatId, setFormatId] = useState(FORMATS[0].id);
+  const generation = useGeneration();
+  const { job, ready } = generation;
+  const gen = job?.gen ?? null;
+
+  const [pickedFormat, setFormatId] = useState(FORMATS[0].id);
   const [topic, setTopic] = useState("");
   const [startError, setStartError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [gen, setGen] = useState<GenState | null>(null);
-  const runnerRef = useRef<PythonRunner | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const [openingCurated, setOpeningCurated] = useState(false);
+  const busy = openingCurated || job !== null;
+  // While a problem is being built, show the format it's being built for.
+  const formatId = job?.formatId ?? pickedFormat;
 
   const selected = FORMATS.find((f) => f.id === formatId)!;
   const needsKey = selected.aiAllowed && !settings;
-
-  // Leaving the page stops everything cleanly: the request and the Python runner.
-  useEffect(
-    () => () => {
-      abortRef.current?.abort();
-      runnerRef.current?.dispose();
-    },
-    []
-  );
-
-  // While a problem is being built, ask before leaving: leaving stops the build.
-  const generating = gen !== null && gen.stage !== "opening";
-  useEffect(() => {
-    if (!generating) return;
-    const message = "Your problem is still being built. If you leave now it stops and nothing is saved. Leave anyway?";
-    let leaving = false; // already confirmed via a link: don't ask twice
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (leaving) return;
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    const onClick = (e: MouseEvent) => {
-      const link = (e.target as HTMLElement | null)?.closest?.("a");
-      if (!link || link.target === "_blank" || e.metaKey || e.ctrlKey || e.shiftKey) return;
-      const href = link.getAttribute("href");
-      if (!href || href.startsWith("#") || href.startsWith("http")) return;
-      if (!window.confirm(message)) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-      leaving = true;
-      abortRef.current?.abort();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    document.addEventListener("click", onClick, true);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      document.removeEventListener("click", onClick, true);
-    };
-  }, [generating]);
+  const error = startError || generation.error;
 
   useEffect(() => {
     if (!initialSettings) return;
@@ -176,141 +134,28 @@ export function AiRoundHome({
   };
 
   // ---------- start ----------
-  const createSession = async (source: "curated" | "generated", problem?: GeneratedProblem) => {
-    const res = await fetch("/api/ai-round/sessions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ formatId, source, problem }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Couldn't start the session");
-    router.push(`/ai-round/${data.id}`);
-  };
-
   const startCurated = async () => {
-    setBusy(true);
+    setOpeningCurated(true);
     setStartError("");
+    generation.dismiss();
     try {
-      await createSession("curated");
+      const res = await fetch("/api/ai-round/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ formatId, source: "curated" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't start the session");
+      router.push(`/ai-round/${data.id}`);
     } catch (err) {
       setStartError(err instanceof Error ? err.message : "Couldn't start");
-      setBusy(false);
+      setOpeningCurated(false);
     }
   };
 
-  const cancel = () => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setGen(null);
-    setBusy(false);
-  };
-
-  const startGenerated = async () => {
-    setBusy(true);
+  const startGenerated = () => {
     setStartError("");
-    runnerRef.current ??= new PythonRunner();
-    const runner = runnerRef.current;
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const t0 = Date.now();
-    const update = (fn: (g: GenState) => GenState) => setGen((g) => (g && !controller.signal.aborted ? fn(g) : g));
-    const note = (text: string) => update((g) => ({ ...g, notes: [...g.notes, text] }));
-    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-    setGen({
-      startedAt: t0,
-      stage: "writing",
-      mode: "write",
-      pythonMs: null,
-      attempt: 1,
-      maxAttempts: MAX_ATTEMPTS,
-      notes: [],
-      files: null,
-      checks: [],
-    });
-    const warm = runner.ready().then(() => update((g) => ({ ...g, pythonMs: Date.now() - t0 })));
-
-    // After a failed check we keep the problem and ask the AI to fix only what
-    // failed (fast). A fresh problem is only written if a fix itself fails.
-    let feedback = "";
-    let toRepair: { problem: GeneratedProblem; reason: string } | null = null;
-    let busyRetried = false;
-    try {
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        const repairing = Boolean(toRepair);
-        update((g) => ({ ...g, stage: "writing", mode: repairing ? "repair" : "write", attempt, checks: repairing ? g.checks : [], files: repairing ? g.files : null }));
-        const res = await fetch("/api/ai-round/generate", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(toRepair ? { formatId, repair: toRepair } : { formatId, topic, feedback }),
-          signal: controller.signal,
-        });
-        const data = await res.json().catch(() => ({}));
-
-        if (res.status === 503 && !busyRetried) {
-          // Provider overloaded even after the server's retries: one more try after a pause.
-          busyRetried = true;
-          note("Your AI provider is overloaded right now. Trying again in 20 seconds…");
-          await wait(20_000);
-          if (controller.signal.aborted) return;
-          attempt--;
-          continue;
-        }
-        if (res.status === 422 && data.retry) {
-          if (data.repairFailed) {
-            note(`Attempt ${attempt}: the fix wasn't usable, so it's writing a fresh problem instead.`);
-            feedback = data.retry;
-            toRepair = null;
-          } else {
-            note(`Attempt ${attempt}: the AI's output wasn't usable, so it's writing a new one.`);
-            feedback = data.retry;
-          }
-          continue;
-        }
-        if (!res.ok) throw new Error(data.error || "Generation failed");
-
-        const problem = data.problem as GeneratedProblem;
-        const files = Object.entries({ ...problem.files, ...problem.tests })
-          .filter(([p]) => p !== "conftest.py" && !p.endsWith("__init__.py"))
-          .map(([path, content]) => ({ path, lines: lineCount(content) }))
-          .sort((a, b) => Number(a.path.startsWith("tests/")) - Number(b.path.startsWith("tests/")) || a.path.localeCompare(b.path));
-        const checks: CheckRow[] = [
-          ...problem.phases.map((_, i) => ({ label: `Part ${i + 1} tests fail on the starter code`, status: "pending" as const })),
-          { label: "The hidden solution passes every test", status: "pending" as const },
-        ];
-        update((g) => ({ ...g, stage: "checking", files, checks }));
-        await warm;
-
-        const setCheck = (i: number, row: Partial<CheckRow>) =>
-          update((g) => ({ ...g, checks: g.checks.map((c, j) => (j === i ? { ...c, ...row } : c)) }));
-        const last = problem.phases.length;
-        let activeIndex = 0;
-        const onProgress = (p: CheckProgress) => {
-          if (p.kind === "phase-start") setCheck((activeIndex = p.index), { status: "active" });
-          if (p.kind === "phase-done") setCheck(p.index, { status: "done", detail: `${p.failing} of ${p.total} fail` });
-          if (p.kind === "solution-start") setCheck((activeIndex = last), { status: "active" });
-          if (p.kind === "solution-done") setCheck(last, { status: "done", detail: `${p.passed} of ${p.total} pass` });
-        };
-        const reason = await validateByRunning(problem, (f, t) => runner.run(f, t), onProgress);
-        if (controller.signal.aborted) return;
-        if (!reason) {
-          update((g) => ({ ...g, stage: "opening" }));
-          await createSession("generated", problem);
-          return;
-        }
-        setCheck(activeIndex, { status: "failed" });
-        toRepair = { problem, reason };
-        note(`Attempt ${attempt} didn't pass the check: ${reason.split("\n")[0].replace(/[.:]\s*$/, "")}. Asking the AI to fix just that.`);
-      }
-      throw new Error(
-        `The AI's problems didn't pass the check after ${MAX_ATTEMPTS} tries. Try again, pick another model, or practise with Log Analyzer.`
-      );
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setStartError(err instanceof Error ? err.message : "Couldn't start");
-      setGen(null);
-      setBusy(false);
-    }
+    generation.start({ formatId, topic, model: settings?.model ?? "" });
   };
 
   const providerInfo = PROVIDERS.find((p) => p.id === provider)!;
@@ -443,7 +288,32 @@ export function AiRoundHome({
 
           <div className="p-6 lg:p-8 min-h-[420px]">
             {gen ? (
-              <GenerationProgress gen={gen} model={settings?.model ?? ""} onCancel={cancel} />
+              <GenerationProgress gen={gen} model={job?.model ?? ""} onCancel={generation.cancel} />
+            ) : ready ? (
+              <div className="h-full flex flex-col items-start justify-center gap-4 ar-in">
+                <CheckCircle2 size={28} className="text-green-400" />
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight">Your problem is ready</h2>
+                  <p className="text-gray-400 mt-1.5">
+                    {ready.title}. It was built while you were on another page. The clock starts when you open it.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/ai-round/${ready.id}`}
+                    onClick={generation.dismiss}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium"
+                  >
+                    <Play size={15} /> Open session
+                  </Link>
+                  <button
+                    onClick={generation.dismiss}
+                    className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-gray-100 hover:bg-gray-800"
+                  >
+                    <X size={14} /> Later
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="h-full flex flex-col">
                 <h2 className="text-xl font-semibold tracking-tight">{selected.name}</h2>
@@ -504,11 +374,11 @@ export function AiRoundHome({
                       title={needsKey ? "Connect your AI first" : ""}
                       className="inline-flex items-center gap-2 text-sm text-gray-300 hover:text-white disabled:opacity-40"
                     >
-                      {busy && !gen ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                      {openingCurated ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
                       Or practise with Log Analyzer, a ready-made problem that opens instantly
                     </button>
                   )}
-                  {startError && <p className="text-sm text-red-400">{startError}</p>}
+                  {error && <p className="text-sm text-red-400">{error}</p>}
                   {!settings && (
                     <p className="text-xs text-gray-500">
                       Without a key, you can still practise Log Analyzer in Solo. Everything else needs your AI.

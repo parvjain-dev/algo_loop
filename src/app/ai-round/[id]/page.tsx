@@ -53,6 +53,14 @@ export default async function AiRoundSessionPage({ params }: { params: Promise<{
     );
   }
 
+  // A problem built in the background may wait a while before it's opened.
+  // The clock starts on the first open (nothing has been logged yet), not when it was saved.
+  if (events.length === 0) {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("ai_sessions").update({ started_at: now }).eq("id", id).eq("status", "active");
+    if (!error) session.started_at = now;
+  }
+
   const { data: key } = await supabase.from("ai_keys").select("provider").eq("user_id", user.id).maybeSingle();
   return <Workspace session={session as SessionData} events={events} hasKey={Boolean(key)} />;
 }
