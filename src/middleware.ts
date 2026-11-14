@@ -51,5 +51,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Static files skip auth, including AI Round's Python runner assets (.js worker, .py harness, .whl wheels).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|py|whl)$).*)"],
 };

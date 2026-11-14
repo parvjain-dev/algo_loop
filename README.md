@@ -64,6 +64,22 @@ Open [http://localhost:3000](http://localhost:3000)
 | Medium | 2, 5, 14, 30 days |
 | Low    | 3, 7, 30 days |
 
+## AI Round
+
+Practice for AI-assisted coding interviews: a multi-file Python codebase, tests that unlock phase by phase, an AI chat that can read (not edit) the files, and a review at the end.
+
+- **Formats** are generic patterns (Bug → Build → Scale, Read & Repair, Open Build, Solo). Each carries tags saying where the pattern was seen and whether that source is official or reported (`src/lib/ai-round/formats.ts`). Re-check sources and update `SOURCES_CHECKED` from time to time.
+- **Bring your own key:** Gemini, OpenAI or Claude. Keys are validated by listing models (no tokens spent), encrypted with AES-256-GCM using `AI_KEY_SECRET`, and only decrypted inside API routes.
+- **Tests run in the browser:** Pyodide + real pytest in a Web Worker (`public/ai-round/`). Pytest wheels are bundled; Pyodide loads from jsDelivr. Hung runs are stopped after 30s.
+- **Generated problems are checked before use:** each phase's tests must fail on the starter code and the hidden solution must pass everything, or the problem is regenerated (up to 3 tries). A curated problem (Log Analyzer) is always available.
+- **The review can't make things up:** numbers and the headline are computed from the event log by code. Every AI-written point must cite real events; quotes must match word for word; counts must appear in the cited events; claims about running tests or pasting must cite a test run or paste. Anything else is removed. When a session is strong (all phases done, nothing flagged), only praise is shown.
+
+### Setup
+
+1. Run `supabase-ai-round.sql` in the Supabase SQL editor (adds 4 tables with row-level security).
+2. Add `AI_KEY_SECRET` to `.env.local` and to Vercel's environment variables (`openssl rand -base64 32`).
+3. Open **AI Round** in the sidebar, connect a key, and start.
+
 ## License
 
 MIT
