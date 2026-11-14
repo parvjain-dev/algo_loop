@@ -154,13 +154,17 @@ export function AiRoundHome({
       setStatus("Loading Python in your browser…");
       const warm = runner.ready();
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        setStatus(`Writing a ${selected.name} problem with your AI${attempt > 1 ? ` (attempt ${attempt} of ${MAX_ATTEMPTS})` : ""}…`);
+        setStatus(`Writing a ${selected.name} problem with your AI${attempt > 1 ? ` (attempt ${attempt} of ${MAX_ATTEMPTS})` : ""}. This usually takes 1–3 minutes…`);
         const res = await fetch("/api/ai-round/generate", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ formatId, topic, feedback }),
         });
         const data = await res.json().catch(() => ({}));
+        if (res.status === 422 && data.retry) {
+          feedback = data.retry; // unusable output: ask again with the reason
+          continue;
+        }
         if (!res.ok) throw new Error(data.error || "Generation failed");
         await warm;
         setStatus("Checking the problem really works: the starter must fail and the hidden solution must pass…");

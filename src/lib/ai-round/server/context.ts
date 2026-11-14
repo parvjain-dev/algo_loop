@@ -73,6 +73,10 @@ export function providerErrorResponse(err: unknown) {
       return jsonError("Your AI provider's rate limit or quota was hit. Wait a minute and try again.", 429);
     return jsonError(`AI provider error: ${err.message}`, 502);
   }
-  if (err instanceof Error && err.name === "TimeoutError") return jsonError("The AI provider took too long to answer.", 504);
+  if (err instanceof Error && err.name === "TimeoutError")
+    return jsonError(
+      "The AI took too long to answer. Try again, pick a Flash or mini model under Your AI, or use the curated problem.",
+      504
+    );
   return jsonError(err instanceof Error ? err.message : "Unexpected error", 500);
 }

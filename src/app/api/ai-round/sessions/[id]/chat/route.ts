@@ -53,6 +53,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       messages: history,
       maxTokens: 3000,
       temperature: 0.3,
+      timeoutMs: 100_000,
+      lightThinking: true,
     });
     return NextResponse.json({ reply });
   } catch (err) {

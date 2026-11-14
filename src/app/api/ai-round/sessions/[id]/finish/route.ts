@@ -71,8 +71,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           },
         ],
         json: true,
-        maxTokens: 4000,
+        maxTokens: 8000,
         temperature: 0.2,
+        timeoutMs: 240_000,
+        lightThinking: true,
       });
       review = groundReview(parseJsonObject(text), { events, metrics, format, model: ai.model });
     } catch (err) {

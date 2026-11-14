@@ -13,10 +13,10 @@ export class ProviderError extends Error {
   }
 }
 
-const TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 90_000;
 
-async function call(url: string, init: RequestInit): Promise<unknown> {
-  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+async function call(url: string, init: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<unknown> {
+  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   const text = await res.text();
   let body: unknown = null;
   try {
@@ -103,30 +103,60 @@ export type CompleteOptions = {
   json?: boolean;
   maxTokens?: number;
   temperature?: number;
+  /** How long to wait for the provider. Long outputs (problem generation) need more. */
+  timeoutMs?: number;
+  /**
+   * Ask "thinking" models to think briefly. Problem generation and reviews
+   * don't need long hidden reasoning, and it can take minutes on newer models.
+   */
+  lightThinking?: boolean;
 };
+
+/** Gemini thinking settings by model generation; null when unknown (leave the default). */
+function geminiThinking(model: string): Record<string, unknown> | null {
+  if (/^gemini-([3-9]|\d{2})/.test(model)) return { thinkingLevel: "low" };
+  if (/^gemini-2\.5-flash/.test(model)) return { thinkingBudget: 0 };
+  if (/^gemini-2\.5-pro/.test(model)) return { thinkingBudget: 128 };
+  return null;
+}
 
 export async function complete(o: CompleteOptions): Promise<string> {
   const maxTokens = o.maxTokens ?? 2048;
   if (o.provider === "gemini") {
-    const body = (await call(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(o.model)}:generateContent`,
-      {
-        method: "POST",
-        headers: { "x-goog-api-key": o.key, "content-type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: o.system }] },
-          contents: o.messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-          generationConfig: {
-            maxOutputTokens: maxTokens,
-            temperature: o.temperature ?? 0.4,
-            ...(o.json ? { responseMimeType: "application/json" } : {}),
-          },
-        }),
-      }
-    )) as { candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[] };
+    const thinking = o.lightThinking ? geminiThinking(o.model) : null;
+    const request = (withThinking: boolean) =>
+      call(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(o.model)}:generateContent`,
+        {
+          method: "POST",
+          headers: { "x-goog-api-key": o.key, "content-type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: o.system }] },
+            contents: o.messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+            generationConfig: {
+              maxOutputTokens: maxTokens,
+              temperature: o.temperature ?? 0.4,
+              ...(o.json ? { responseMimeType: "application/json" } : {}),
+              ...(withThinking && thinking ? { thinkingConfig: thinking } : {}),
+            },
+          }),
+        },
+        o.timeoutMs
+      );
+    let raw: unknown;
+    try {
+      raw = await request(true);
+    } catch (err) {
+      // A model that doesn't accept this thinking setting: retry with its default.
+      if (thinking && err instanceof ProviderError && err.status === 400 && /think/i.test(err.message)) raw = await request(false);
+      else throw err;
+    }
+    const body = raw as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[] };
     const cand = body.candidates?.[0];
-    const text = (cand?.content?.parts || []).map((p) => p.text || "").join("");
+    const text = (cand?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || "").join("");
     if (!text) throw new ProviderError(`Empty response (${cand?.finishReason || "no candidates"})`, 502);
+    if (cand?.finishReason === "MAX_TOKENS" && o.json)
+      throw new ProviderError("The model ran out of output space before finishing. Try again or pick another model.", 502);
     return text;
   }
   if (o.provider === "openai") {
@@ -138,9 +168,10 @@ export async function complete(o: CompleteOptions): Promise<string> {
         messages: [{ role: "system", content: o.system }, ...o.messages],
         max_completion_tokens: maxTokens,
         ...(/^o\d|^gpt-5/.test(o.model) ? {} : { temperature: o.temperature ?? 0.4 }),
+        ...(o.lightThinking && /^o\d|^gpt-5/.test(o.model) ? { reasoning_effort: "low" } : {}),
         ...(o.json ? { response_format: { type: "json_object" } } : {}),
       }),
-    })) as { choices?: { message?: { content?: string } }[] };
+    }, o.timeoutMs)) as { choices?: { message?: { content?: string } }[] };
     const text = body.choices?.[0]?.message?.content || "";
     if (!text) throw new ProviderError("Empty response", 502);
     return text;
@@ -155,7 +186,7 @@ export async function complete(o: CompleteOptions): Promise<string> {
       max_tokens: maxTokens,
       temperature: o.temperature ?? 0.4,
     }),
-  })) as { content?: { type: string; text?: string }[] };
+  }, o.timeoutMs)) as { content?: { type: string; text?: string }[] };
   const text = (body.content || []).filter((c) => c.type === "text").map((c) => c.text || "").join("");
   if (!text) throw new ProviderError("Empty response", 502);
   return text;

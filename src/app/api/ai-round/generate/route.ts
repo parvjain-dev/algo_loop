@@ -27,31 +27,27 @@ export async function POST(request: Request) {
   const topic = (body.topic || "").slice(0, 120);
   const feedback = (body.feedback || "").slice(0, 3000);
 
-  let lastError = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let text: string;
-    try {
-      text = await completeForUser(supabase, user.id, ai, {
-        system: GENERATOR_SYSTEM,
-        messages: [
-          {
-            role: "user",
-            content: generatorPrompt(format, topic, feedback || (lastError ? `The JSON was not usable: ${lastError}` : "")),
-          },
-        ],
-        json: true,
-        maxTokens: 16000,
-        temperature: 0.7,
-      });
-    } catch (err) {
-      return providerErrorResponse(err);
-    }
-    try {
-      const problem = checkGeneratedShape(parseJsonObject(text), format.phaseCount);
-      return NextResponse.json({ problem });
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : "invalid JSON";
-    }
+  // One attempt per request: a generation can take a few minutes, and the
+  // browser retries with feedback (bad JSON or failed test check) on 422.
+  let text: string;
+  try {
+    text = await completeForUser(supabase, user.id, ai, {
+      system: GENERATOR_SYSTEM,
+      messages: [{ role: "user", content: generatorPrompt(format, topic, feedback) }],
+      json: true,
+      maxTokens: 24000,
+      temperature: 0.7,
+      timeoutMs: 270_000,
+      lightThinking: true,
+    });
+  } catch (err) {
+    return providerErrorResponse(err);
   }
-  return jsonError(`The AI couldn't produce a usable problem (${lastError}). Try again or pick another model.`, 502);
+  try {
+    const problem = checkGeneratedShape(parseJsonObject(text), format.phaseCount);
+    return NextResponse.json({ problem });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "invalid JSON";
+    return NextResponse.json({ error: `The AI's problem wasn't usable (${reason}).`, retry: `The JSON was not usable: ${reason}` }, { status: 422 });
+  }
 }
