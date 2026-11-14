@@ -9,6 +9,8 @@ export type CheckRow = { label: string; status: "pending" | "active" | "done" | 
 export type GenState = {
   startedAt: number;
   stage: "writing" | "checking" | "opening";
+  /** Writing a new problem, or fixing the one that failed the check. */
+  mode: "write" | "repair";
   pythonMs: number | null;
   attempt: number;
   maxAttempts: number;
@@ -118,7 +120,15 @@ export function GenerationProgress({
 
         <Step
           status={writing ? "active" : "done"}
-          title={writing ? "Your AI is writing the codebase, tests and a hidden solution" : "Problem written"}
+          title={
+            writing
+              ? gen.mode === "repair"
+                ? "Your AI is fixing what failed the check"
+                : "Your AI is writing the codebase, tests and a hidden solution"
+              : gen.mode === "repair"
+                ? "Problem fixed"
+                : "Problem written"
+          }
           aside={gen.attempt > 1 ? `Attempt ${gen.attempt} of ${gen.maxAttempts}` : undefined}
         >
           <div className="rounded-lg border border-gray-800 bg-gray-950 overflow-hidden">

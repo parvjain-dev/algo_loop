@@ -29,7 +29,8 @@ const PROVIDERS: { id: Provider; name: string; keyUrl: string; note: string }[] 
   { id: "anthropic", name: "Claude", keyUrl: "https://console.anthropic.com/settings/keys", note: "Pay as you go" },
 ];
 
-const MAX_ATTEMPTS = 3;
+/** One fresh problem plus up to three targeted fixes. */
+const MAX_ATTEMPTS = 4;
 
 export function SourceBadge({ source }: { source: string }) {
   const s = SOURCES[source];
@@ -172,10 +173,13 @@ export function AiRoundHome({
     abortRef.current = controller;
     const t0 = Date.now();
     const update = (fn: (g: GenState) => GenState) => setGen((g) => (g && !controller.signal.aborted ? fn(g) : g));
+    const note = (text: string) => update((g) => ({ ...g, notes: [...g.notes, text] }));
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     setGen({
       startedAt: t0,
       stage: "writing",
+      mode: "write",
       pythonMs: null,
       attempt: 1,
       maxAttempts: MAX_ATTEMPTS,
@@ -185,20 +189,41 @@ export function AiRoundHome({
     });
     const warm = runner.ready().then(() => update((g) => ({ ...g, pythonMs: Date.now() - t0 })));
 
+    // After a failed check we keep the problem and ask the AI to fix only what
+    // failed (fast). A fresh problem is only written if a fix itself fails.
     let feedback = "";
+    let toRepair: { problem: GeneratedProblem; reason: string } | null = null;
+    let busyRetried = false;
     try {
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        update((g) => ({ ...g, stage: "writing", attempt, files: null, checks: [] }));
+        const repairing = Boolean(toRepair);
+        update((g) => ({ ...g, stage: "writing", mode: repairing ? "repair" : "write", attempt, checks: repairing ? g.checks : [], files: repairing ? g.files : null }));
         const res = await fetch("/api/ai-round/generate", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ formatId, topic, feedback }),
+          body: JSON.stringify(toRepair ? { formatId, repair: toRepair } : { formatId, topic, feedback }),
           signal: controller.signal,
         });
         const data = await res.json().catch(() => ({}));
+
+        if (res.status === 503 && !busyRetried) {
+          // Provider overloaded even after the server's retries: one more try after a pause.
+          busyRetried = true;
+          note("Your AI provider is overloaded right now. Trying again in 20 seconds…");
+          await wait(20_000);
+          if (controller.signal.aborted) return;
+          attempt--;
+          continue;
+        }
         if (res.status === 422 && data.retry) {
-          feedback = data.retry;
-          update((g) => ({ ...g, notes: [...g.notes, `Attempt ${attempt}: the AI's output wasn't usable, so it's writing a new one.`] }));
+          if (data.repairFailed) {
+            note(`Attempt ${attempt}: the fix wasn't usable, so it's writing a fresh problem instead.`);
+            feedback = data.retry;
+            toRepair = null;
+          } else {
+            note(`Attempt ${attempt}: the AI's output wasn't usable, so it's writing a new one.`);
+            feedback = data.retry;
+          }
           continue;
         }
         if (!res.ok) throw new Error(data.error || "Generation failed");
@@ -209,7 +234,7 @@ export function AiRoundHome({
           .map(([path, content]) => ({ path, lines: lineCount(content) }))
           .sort((a, b) => Number(a.path.startsWith("tests/")) - Number(b.path.startsWith("tests/")) || a.path.localeCompare(b.path));
         const checks: CheckRow[] = [
-          ...problem.phases.map((p, i) => ({ label: `Part ${i + 1} tests fail on the starter code`, status: "pending" as const })),
+          ...problem.phases.map((_, i) => ({ label: `Part ${i + 1} tests fail on the starter code`, status: "pending" as const })),
           { label: "The hidden solution passes every test", status: "pending" as const },
         ];
         update((g) => ({ ...g, stage: "checking", files, checks }));
@@ -233,11 +258,8 @@ export function AiRoundHome({
           return;
         }
         setCheck(activeIndex, { status: "failed" });
-        feedback = reason;
-        update((g) => ({
-          ...g,
-          notes: [...g.notes, `Attempt ${attempt} didn't pass the check: ${reason.split("\n")[0].replace(/[.:]\s*$/, "")}. Asking for a fixed version.`],
-        }));
+        toRepair = { problem, reason };
+        note(`Attempt ${attempt} didn't pass the check: ${reason.split("\n")[0].replace(/[.:]\s*$/, "")}. Asking the AI to fix just that.`);
       }
       throw new Error(
         `The AI's problems didn't pass the check after ${MAX_ATTEMPTS} tries. Try again, pick another model, or practise with Log Analyzer.`
