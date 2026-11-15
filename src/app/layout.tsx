@@ -11,6 +11,7 @@ import { GenerationProvider } from "./ai-round/GenerationProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
+  verification: { google: "g3Rv71q5fpAH47h8_i4QDNH8ombOXu3wreGnwqOLsiU" },
   title: "Algo Loop - DSA Revision Tracker",
   description: "Track your DSA problem revisions with spaced repetition",
   icons: { icon: "/favicon.svg" },
