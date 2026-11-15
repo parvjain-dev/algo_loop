@@ -52,5 +52,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // Static files skip auth, including AI Round's Python runner assets (.js worker, .py harness, .whl wheels).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|py|whl)$).*)"],
+  // robots.txt and sitemap.xml are public so search engines can read them.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.svg|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|py|whl)$).*)"],
 };

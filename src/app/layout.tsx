@@ -6,9 +6,11 @@ import "@fontsource/ibm-plex-sans/700.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "./globals.css";
+import { siteUrl } from "@/lib/site";
 import { GenerationProvider } from "./ai-round/GenerationProvider";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: "Algo Loop - DSA Revision Tracker",
   description: "Track your DSA problem revisions with spaced repetition",
   icons: { icon: "/favicon.svg" },
